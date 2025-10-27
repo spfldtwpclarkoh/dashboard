@@ -469,6 +469,11 @@
         // --- This listener starts all other listeners once config is loaded ---
         function initializeConfigListener() {
             const configDocRef = doc(db, 'config', 'global');
+            
+            // *** BEGIN FIX ***
+            let firstConfigLoad = true; // NEW: Flag for first load
+            // *** END FIX ***
+
             onSnapshot(configDocRef, (docSnap) => {
                 if (docSnap.exists()) {
                     console.log("Global config loaded/updated.");
@@ -494,9 +499,20 @@
                     fetchIPAWSAlerts();
                     fetchToolbarWeather();
                     
-                    // Start the other listeners
-                    initializeAlertListener(); 
-                    initializeSlideListener(); // This will call startRotation()
+                    // --- *** BEGIN FIX *** ---
+                    if (firstConfigLoad) {
+                        console.log("Attaching persistent listeners for alerts and slides.");
+                        initializeAlertListener(); 
+                        initializeSlideListener(); // This will call startRotation() on its own
+                        firstConfigLoad = false;
+                    } else {
+                        // On subsequent loads (manual refresh), just restart rotation
+                        console.log("Config reloaded, restarting slide rotation.");
+                        // We must call startRotation() to re-run setupGoogleSlides()
+                        // This will pick up new URLs or durations from the new config.
+                        startRotation();
+                    }
+                    // --- *** END FIX *** ---
 
                     // Set new intervals based on loaded config
                     const ipawsRefreshMs = (dashboardConfig.nwsAlertRefreshSeconds || 300) * 1000;
@@ -582,6 +598,7 @@
                 db = getFirestore(app);
                 
                 // Start by fetching config. Everything else depends on it.
+                // *** UPDATED: This will now handle attaching other listeners on first load ***
                 initializeConfigListener();
 
             } catch(e) {
@@ -597,3 +614,4 @@
 
 </body>
 </html>
+
