@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en" class="dark"> <!-- Enable dark mode -->
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vehicle Status Board</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- PapaParse script removed -->
+    <style>
+        /* Custom font */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* No longer need sticky headers */
+    </style>
+</head>
+<!-- Use flex-col and h-screen for non-scrolling page layout -->
+<body class="bg-gray-900 text-gray-200 h-screen flex flex-col p-4 sm:p-8">
+
+    <!-- Removed max-w-7xl and mx-auto to use full width -->
+    <div class="flex flex-col flex-grow overflow-hidden w-full">
+        <!-- Header Section -->
+        <!-- Increased padding and margin -->
+        <header class="p-6 mb-6 bg-white dark:bg-gray-800 rounded-lg shadow-lg">
+            <!-- Increased font size -->
+            <h1 class="text-3xl sm:text-4xl font-bold text-gray-800 dark:text-gray-100">Vehicle Status Board</h1>
+            <!-- "Last Updated" paragraph removed -->
+        </header>
+
+        <!-- Loading Spinner -->
+        <div id="loading-spinner" class="flex justify-center items-center p-20 dark:text-gray-300">
+            <svg class="animate-spin h-10 w-10 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span class="ml-3 text-gray-600 dark:text-gray-300 text-lg">Loading Vehicle Data...</span>
+        </div>
+
+        <!-- Error Message Container -->
+        <div id="error-message" class="hidden p-6">
+            <div class="bg-red-100 border border-red-400 text-red-700 dark:bg-red-900 dark:text-red-200 dark:border-red-700 px-4 py-3 rounded-lg text-lg" role="alert">
+                <strong class="font-bold">Error:</strong>
+                <span class="block sm:inline">Could not fetch vehicle data. Please check the network connection or the Google Sheet URL.</span>
+            </div>
+        </div>
+
+        <!-- Card Container -->
+        <!-- Reduced column count for larger cards, increased gap -->
+        <div id="card-container" class="hidden flex-grow overflow-y-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+            <!-- Vehicle cards will be dynamically inserted here -->
+        </div>
+
+    </div>
+
+    <script>
+        window.addEventListener('load', () => {
+
+            const googleSheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSgaVOwKFXoya_LyGOX5_CGFkWKw56X6huBFo_t84Sc_UEByoyHdhb3RcfLcIyWHYAlLXdRGNRrf_1B/pub?gid=1714038258&single=true&output=csv';
+
+            // Select elements
+            const cardContainer = document.getElementById('card-container');
+            // Remove table-specific selectors
+            const loadingSpinner = document.getElementById('loading-spinner');
+            const errorMessage = document.getElementById('error-message');
+            // const lastUpdated = document.getElementById('last-updated'); // <-- Removed this line
+
+            // Variable to store the raw text of the last successful fetch
+            let lastFetchedCSV = '';
+
+            /**
+             * Robust CSV to JSON parser.
+             * Handles quoted fields containing commas and escaped quotes.
+             * @param {string} csvText - The raw CSV text.
+             * @returns {{data: Array<object>, headers: Array<string>}}
+             */
+            function parseCSV(csvText) {
+                // Helper function to parse a single CSV line robustly
+                const parseLine = (line) => {
+                    const fields = [];
+                    let currentField = '';
+                    let inQuote = false;
+
+                    // Trim trailing \r characters from the line
+                    line = line.trim().replace(/\r$/, '');
+
+                    for (let i = 0; i < line.length; i++) {
+                        const char = line[i];
+                        const nextChar = line[i + 1];
+
+                        if (char === '"') {
+                            if (inQuote && nextChar === '"') {
+                                // Handle escaped double quote ("")
+                                currentField += '"';
+                                i++; // Skip the next quote
+                            } else {
+                                // Toggle inQuote state
+                                inQuote = !inQuote;
+                            }
+                        } else if (char === ',' && !inQuote) {
+                            // End of a field
+                            fields.push(currentField.trim());
+                            currentField = '';
+                        } else {
+                            // Regular character
+                            currentField += char;
+                        }
+                    }
+                    
+                    // Add the last field
+                    fields.push(currentField.trim());
+                    return fields;
+                };
+                
+                const lines = csvText.trim().split('\n');
+                if (lines.length < 1) {
+                    return { data: [], headers: [] };
+                }
+
+                // Clean headers (remove \r and extra quotes)
+                const headers = parseLine(lines[0]).map(header => header.replace(/"/g, ''));
+                const data = [];
+
+                for (let i = 1; i < lines.length; i++) {
+                    if (lines[i].trim() === '') continue; // Skip empty lines
+
+                    const values = parseLine(lines[i]);
+                    
+                    // Ensure row has the same number of columns as headers
+                    if (values.length !== headers.length) {
+                        console.warn('Skipping malformed row:', lines[i], 'Expected', headers.length, 'fields, got', values.length);
+                        continue; // Skip rows that don't match header count
+                    }
+
+                    const obj = {};
+                    for (let j = 0; j < headers.length; j++) {
+                        obj[headers[j]] = values[j] || ''; // Assign parsed value
+                    }
+                    data.push(obj);
+                }
+                return { data, headers };
+            }
+
+
+            /**
+             * Fetches and displays the vehicle data using native fetch.
+             */
+            async function fetchVehicleData() {
+                try {
+                    const response = await fetch(googleSheetUrl);
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    const csvText = await response.text();
+
+                    // --- MODIFICATION ---
+                    // Compare new CSV text to the previously stored one
+                    if (csvText === lastFetchedCSV) {
+                        // Data hasn't changed, so don't do anything.
+                        // We don't update the timestamp, we don't re-render.
+                        console.log("Data unchanged. Skipping update.");
+                        return; // Exit the function
+                    }
+
+                    // --- DATA HAS CHANGED ---
+                    // Store the new version
+                    lastFetchedCSV = csvText;
+                    
+                    const { data, headers } = parseCSV(csvText);
+
+                    if (!headers || headers.length === 0) {
+                         throw new Error("Parsed data is empty or invalid (no headers found).");
+                    }
+
+                    displayData(data, headers);
+                    
+                    // Hide loading spinner and show card grid
+                    loadingSpinner.classList.add('hidden');
+                    cardContainer.classList.remove('hidden');
+                    errorMessage.classList.add('hidden'); // Hide error if previously shown
+                    
+                    // Update timestamp ONLY when data has changed
+                    // updateTimestamp(response); // <-- Removed this call
+
+                } catch (error) {
+                    console.error('Fetching or Parsing error:', error);
+                    showError();
+                }
+            }
+
+            /**
+             * Renders the parsed data into the HTML card grid.
+             * @param {Array<object>} data - The array of data rows (objects).
+             * @param {Array<string>} headers - The array of header strings.
+             */
+            function displayData(data, headers) {
+                // Clear existing data
+                cardContainer.innerHTML = '';
+
+                // Assume the first header is the primary identifier (e.g., Vehicle Name)
+                const titleHeader = headers[0];
+
+                // --- New Filtering Logic ---
+                // 1. Filter data to include OOS/Limited units OR units with comments
+                const filteredData = data.filter(row => {
+                    // Assumes the column name is exactly 'Comments'
+                    const hasComment = row['Comments'] && row['Comments'].trim() !== '';
+                    
+                    const status = (row['Status'] || '').toLowerCase();
+                    const isHighPriorityStatus = status.includes('out of service') || 
+                                                 status.includes('maintenance') || 
+                                                 status.includes('oos') || 
+                                                 status.includes('limited service');
+
+                    return isHighPriorityStatus || hasComment;
+                });
+
+                // --- New Sorting Logic ---
+                // Helper function to assign a sort priority based on status
+                const getSortPriority = (row) => {
+                    const status = (row['Status'] || '').toLowerCase();
+                    if (status.includes('out of service') || status.includes('maintenance') || status.includes('oos') || status.includes('limited service')) {
+                        return 1; // High priority (OOS / Limited)
+                    }
+                    return 0; // Normal priority
+                };
+
+                // 2. Sort the filtered data
+                const sortedData = filteredData.sort((a, b) => {
+                    const priorityA = getSortPriority(a);
+                    const priorityB = getSortPriority(b);
+                    return priorityB - priorityA; // Descending order (1s come before 0s)
+                });
+                // --- End New Logic ---
+
+
+                // Create a card for each row (using sortedData)
+                sortedData.forEach(row => {
+                    const card = document.createElement('div');
+                    
+                    // --- New Style Logic ---
+                    // Find status first to style the card
+                    // Assumes 'Status' is the exact column name from the CSV
+                    const status = row['Status'] || 'Unknown'; 
+                    const styles = getStatusStyles(status);
+
+                    // Add status border, dark mode bg, increased padding
+                    card.className = `bg-white dark:bg-gray-700 rounded-lg shadow-lg p-6 flex flex-col ${styles.cardBorder} transition-all duration-300 hover:shadow-xl hover:-translate-y-1`;
+                    // --- End New Style Logic ---
+
+                    let cardContent = '';
+                    let statusHtml = ''; // We'll save status to put at the end
+                    let otherFieldsHtml = ''; // Save other fields
+
+                    // Add the title
+                    const title = row[titleHeader] || 'Unknown Vehicle';
+                    // --- Title Style Change ---
+                    // Increased font size, changed to bold, and added a horizontal rule
+                    cardContent += `<h3 class="text-4xl font-bold text-gray-900 dark:text-white mb-3 truncate" title="${title}">${title}</h3>`;
+                    cardContent += `<hr class="border-gray-300 dark:border-gray-600 mb-4">`;
+                    // --- End Title Style Change ---
+
+                    // Add the rest of the data as key-value pairs
+                    for (let i = 1; i < headers.length; i++) {
+                        const header = headers[i];
+                        const cellData = row[header] || '';
+                        
+                        // Apply status-based styling
+                        if (header.toLowerCase() === 'status') {
+                            // Use the styles we already fetched
+                            // Use mt-auto to push this block to the bottom of the flex container
+                            // Increased padding, increased badge text
+                            statusHtml = `<div class="mt-auto pt-4"> 
+                                              <span class="text-lg font-semibold text-gray-400 dark:text-gray-300 uppercase tracking-wider">${header}</span>
+                                              <div class="mt-1">
+                                                <span class="px-3 py-1 inline-flex text-lg leading-5 font-semibold rounded-full ${styles.badge}">
+                                                    ${status || 'Unknown'}
+                                                </span>
+                                              </div>
+                                            </div>`;
+                        } else if(cellData) { // Only show field if it has data
+                            // Improved typography for other fields
+                            // Increased margin, increased data text
+                            otherFieldsHtml += `<div class="mb-3">
+                                              <span class="text-lg font-semibold text-gray-400 dark:text-gray-300 uppercase tracking-wider">${header}</span>
+                                              <p class="text-xl text-gray-700 dark:text-gray-100">${cellData}</p>
+                                            </div>`;
+                        }
+                    }
+                    
+                    // Assemble the card content, ensuring status is last
+                    card.innerHTML = cardContent + otherFieldsHtml + statusHtml;
+                    cardContainer.appendChild(card);
+                });
+            }
+
+            /**
+             * Returns style classes based on status.
+             * @param {string} status - The status text.
+             * @returns {{badge: string, cardBorder: string}}
+             */
+            function getStatusStyles(status) {
+                // Default dark mode styles added
+                let badgeClasses = 'bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-100'; // Default
+                let cardBorder = 'border-l-8 border-gray-300 dark:border-gray-500'; // Default
+                const lowerStatus = status.toLowerCase();
+
+                if (lowerStatus.includes('available') || lowerStatus.includes('in service')) {
+                    badgeClasses = 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100';
+                    cardBorder = 'border-l-8 border-green-500 dark:border-green-400';
+                } else if (lowerStatus.includes('out of service') || lowerStatus.includes('maintenance') || lowerStatus.includes('oos')) {
+                    badgeClasses = 'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100';
+                    cardBorder = 'border-l-8 border-red-500 dark:border-red-400';
+                } else if (lowerStatus.includes('in use') || lowerStatus.includes('on trip')) {
+                    badgeClasses = 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100';
+                    cardBorder = 'border-l-8 border-yellow-500 dark:border-yellow-400';
+                } else if (lowerStatus.includes('limited service')) {
+                    badgeClasses = 'bg-orange-100 text-orange-800 dark:bg-orange-800 dark:text-orange-100';
+                    cardBorder = 'border-l-8 border-orange-500 dark:border-orange-400';
+                } else if (lowerStatus.includes('reserved')) {
+                    badgeClasses = 'bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100';
+                    cardBorder = 'border-l-8 border-blue-500 dark:border-blue-400';
+                }
+
+                return { badge: badgeClasses, cardBorder: cardBorder };
+            }
+
+
+            /**
+             * Shows the error message and hides the loader.
+             */
+            function showError() {
+                loadingSpinner.classList.add('hidden');
+                cardContainer.classList.add('hidden'); // Also hide cards on error
+                errorMessage.classList.remove('hidden');
+            }
+
+            /**
+             * Updates the 'Last Updated' timestamp.
+             * @param {Response} response - The fetch response object.
+             */
+            // Entire updateTimestamp function removed.
+
+            // Initial data fetch
+            fetchVehicleData();
+
+            // Optional: Set an interval to refresh the data (e.g., every 5 minutes)
+            // 300000 milliseconds = 5 minutes
+            setInterval(fetchVehicleData, 300000);
+
+        });
+    </script>
+</body>
+</html>

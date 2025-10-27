@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Training & Event Board</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Configure Tailwind for dark mode -->
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                },
+            },
+        }
+    </script>
+    <!-- Basic styles -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            cursor: none; /* Hide the cursor */
+            user-select: none; /* Standard syntax */
+            -webkit-user-select: none; /* Safari */
+            -moz-user-select: none; /* Firefox */
+            -ms-user-select: none; /* IE/Edge */
+        }
+    </style>
+</head>
+<!-- Added padding to the body tag -->
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen antialiased p-4 md:p-8">
+
+    <!-- Removed 'container' and 'mx-auto' classes to use full width -->
+    <div class="w-full">
+        <!-- Header updated to match style from index.html -->
+        <header class="p-6 mb-6 bg-white dark:bg-gray-800 rounded-lg shadow-lg">
+            <h1 class="text-3xl sm:text-4xl font-bold text-gray-800 dark:text-gray-100">Training & Event Board</h1>
+            <!-- Increased subtitle font size -->
+            <p class="text-xl text-gray-600 dark:text-gray-300 mt-2">Upcoming sessions and workshops</p>
+        </header>
+
+        <!-- Loading Indicator -->
+        <div id="loading" class="text-center py-12">
+            <!-- Made spinner larger -->
+            <div class="inline-block animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500"></div>
+            <!-- Increased text size -->
+            <p class="mt-4 text-xl font-medium">Loading events...</p>
+        </div>
+
+        <!-- Error Message -->
+        <!-- Increased text size -->
+        <div id="error" class="hidden text-lg bg-red-100 dark:bg-red-900 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-200 px-4 py-3 rounded-lg text-center" role="alert">
+            <strong class="font-bold">Error:</strong>
+            <span class="block sm:inline" id="error-message"></span>
+        </div>
+
+        <!-- Event Board Grid -->
+        <div id="event-board" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+            <!-- Event cards will be injected here -->
+        </div>
+
+        <!-- No Events Message -->
+        <div id="no-events" class="hidden text-center py-12">
+            <!-- Increased text size -->
+            <p class="text-2xl text-gray-500 dark:text-gray-400">No events found.</p>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchEvents();
+        });
+
+        const SPREADSHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSgaVOwKFXoya_LyGOX5_CGFkWKw56X6huBFo_t84Sc_UEByoyHdhb3RcfLcIyWHYAlLXdRGNRrf_1B/pub?gid=1283531165&single=true&output=csv';
+
+        /**
+         * Fetches and displays the event data.
+         */
+        async function fetchEvents() {
+            const loadingEl = document.getElementById('loading');
+            const errorEl = document.getElementById('error');
+            const errorMessageEl = document.getElementById('error-message');
+            const boardEl = document.getElementById('event-board');
+            const noEventsEl = document.getElementById('no-events');
+
+            loadingEl.classList.remove('hidden');
+            errorEl.classList.add('hidden');
+            boardEl.innerHTML = ''; // Clear previous results
+
+            try {
+                const response = await fetch(SPREADSHEET_URL);
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch data: ${response.status} ${response.statusText}`);
+                }
+                const csvText = await response.text();
+                const events = parseCSV(csvText);
+                
+                if (events.length === 0) {
+                    noEventsEl.classList.remove('hidden');
+                } else {
+                    displayEvents(events);
+                }
+
+            } catch (err) {
+                console.error(err);
+                errorMessageEl.textContent = err.message || 'Could not load event data.';
+                errorEl.classList.remove('hidden');
+            } finally {
+                loadingEl.classList.add('hidden');
+            }
+        }
+
+        /**
+         * Parses CSV text into an array of event objects.
+         * This is a simple parser and assumes no commas within quoted fields.
+         * For a more robust solution, a library would be better, but this handles this sheet's format.
+         */
+        function parseCSV(text) {
+            const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
+            if (lines.length < 2) return []; // No data
+
+            const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+            const data = lines.slice(1);
+
+            // Find column indices
+            const titleIndex = headers.indexOf('Title *');
+            const descIndex = headers.indexOf('Description');
+            const locIndex = headers.indexOf('Location');
+            const startIndex = headers.indexOf('Start Date/Time');
+            const endIndex = headers.indexOf('End Date/Time');
+
+            return data.map(line => {
+                // This regex handles commas inside quoted fields
+                const values = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(v => v.trim().replace(/^"|"$/g, ''));
+                
+                return {
+                    title: values[titleIndex] || 'No Title',
+                    description: values[descIndex] || '',
+                    location: values[locIndex] || 'N/A',
+                    start: values[startIndex] || null,
+                    end: values[endIndex] || null,
+                };
+            }).filter(event => event.title && event.title !== 'No Title'); // Filter out empty rows
+        }
+
+        /**
+         * Renders the event cards on the board.
+         */
+        function displayEvents(events) {
+            const boardEl = document.getElementById('event-board');
+            boardEl.innerHTML = ''; // Clear board
+
+            // --- Updated column count for wider layout ---
+            boardEl.className = 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6';
+
+
+            for (const event of events) {
+                const card = document.createElement('div');
+                card.className = 'bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden flex flex-col transform transition-transform duration-300 hover:scale-105';
+
+                card.innerHTML = `
+                    <div class="p-6 flex-grow">
+                        <!-- Increased title size -->
+                        <h2 class="text-2xl font-bold mb-2 text-blue-700 dark:text-blue-300">${event.title}</h2>
+                        <!-- Increased description size -->
+                        <p class="text-lg text-gray-600 dark:text-gray-400 mb-4">${event.description || 'No description provided.'}</p>
+                    </div>
+                    <div class="bg-gray-50 dark:bg-gray-700 p-6 border-t border-gray-200 dark:border-gray-600">
+                        <div class="flex items-center mb-3">
+                            <!-- Increased icon size -->
+                            <svg class="w-6 h-6 text-gray-500 dark:text-gray-400 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                            <!-- Increased text size -->
+                            <span class="text-lg text-gray-700 dark:text-gray-300">${event.location}</span>
+                        </div>
+                        <div class="flex items-center mb-3">
+                            <!-- Increased icon size -->
+                            <svg class="w-6 h-6 text-gray-500 dark:text-gray-400 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                            <!-- Increased text size -->
+                            <span class="text-lg text-gray-700 dark:text-gray-300">
+                                <strong class="font-medium">Start:</strong> ${formatEventDate(event.start)}
+                            </span>
+                        </div>
+                        <div class="flex items-center">
+                            <!-- Increased icon size -->
+                            <svg class="w-6 h-6 text-gray-500 dark:text-gray-400 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                            <!-- Increased text size -->
+                            <span class="text-lg text-gray-700 dark:text-gray-300">
+                                <strong class="font-medium">End:</strong> ${formatEventDate(event.end)}
+                            </span>
+                        </div>
+                    </div>
+                `;
+                boardEl.appendChild(card);
+            }
+        }
+
+        /**
+         * Formats a date string into a readable format.
+         */
+        function formatEventDate(dateString) {
+            if (!dateString) {
+                return 'N/A';
+            }
+            try {
+                const date = new Date(dateString);
+                if (isNaN(date.getTime())) {
+                    // Handle cases where date string is not parsable by new Date()
+                    return dateString;
+                }
+                return date.toLocaleString(undefined, {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit'
+                });
+            } catch (e) {
+                console.warn(`Could not parse date: ${dateString}`, e);
+                return dateString; // Fallback to original string
+            }
+        }
+
+    </script>
+</body>
+</html>
+

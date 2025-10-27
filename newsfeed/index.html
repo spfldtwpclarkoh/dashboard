@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Department News Feed</title>
+    <!-- Load Tailwind CSS from CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Use the Inter font family */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-300">
+
+    <!-- Removed 'container' and 'max-w-6xl' to make it full width -->
+    <div class="p-4 md:p-8">
+        <!-- Header classes updated to match the provided file -->
+        <header class="p-6 mb-6 bg-white dark:bg-gray-800 rounded-lg shadow-lg">
+            <!-- H1 classes updated to match the provided file -->
+            <h1 class="text-3xl sm:text-4xl font-bold text-gray-800 dark:text-gray-100">Department News</h1>
+        </header>
+
+        <main>
+            <!-- Loading spinner -->
+            <div id="loading-indicator" class="flex justify-center items-center py-10">
+                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400"></div>
+            </div>
+
+            <!-- Container where news items will be injected -->
+            <!-- Updated classes for column layout -->
+            <div id="news-feed-container" class="columns-1 md:columns-2 lg:columns-2 gap-8">
+                <!-- News items will be dynamically inserted here -->
+            </div>
+        </main>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchAndDisplayNews();
+        });
+
+        // The URL for your published Google Sheet CSV
+        const GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSgaVOwKFXoya_LyGOX5_CGFkWKw56X6huBFo_t84Sc_UEByoyHdhb3RcfLcIyWHYAlLXdRGNRrf_1B/pub?gid=0&single=true&output=csv';
+
+        /**
+         * Main function to fetch, parse, filter, and render the news.
+         */
+        async function fetchAndDisplayNews() {
+            const feedContainer = document.getElementById('news-feed-container');
+            const loadingIndicator = document.getElementById('loading-indicator');
+            
+            // Clear previous content and show loader
+            feedContainer.innerHTML = '';
+            loadingIndicator.style.display = 'flex';
+
+            try {
+                // Fetch the CSV data
+                const response = await fetch(GOOGLE_SHEET_URL);
+                if (!response.ok) {
+                    throw new Error(`Network response was not ok: ${response.statusText}`);
+                }
+                const csvText = await response.text();
+                
+                // Parse the CSV text into an array of objects
+                const newsItems = parseCSV(csvText);
+
+                // Filter items based on the current date
+                const filteredItems = filterNewsByDate(newsItems);
+
+                // Render the filtered items to the page
+                renderNewsItems(filteredItems);
+
+            } catch (error) {
+                console.error('Failed to fetch or display news:', error);
+                // Increased font size for error
+                feedContainer.innerHTML = `<p class="text-center text-lg text-red-300 bg-red-900 p-4 rounded-lg border border-red-700">Failed to load news feed. Please try again later.</p>`;
+            } finally {
+                // Hide the loader
+                loadingIndicator.style.display = 'none';
+            }
+        }
+
+        /**
+         * Parses the raw CSV text into an array of news item objects.
+         * This parser correctly handles commas within quoted fields.
+         * @param {string} text - The raw CSV text.
+         * @returns {Array<object>} An array of news items.
+         */
+        function parseCSV(text) {
+            const lines = text.trim().split(/\r\n|\n/); // Split by newline
+            if (lines.length < 2) return []; // No data rows
+
+            // Extract headers
+            const headersRaw = lines.shift().split(',');
+            const headers = headersRaw.map(h => h.trim().replace(/"/g, ''));
+
+            // Find the index for each required column
+            const headerMap = {
+                title: headers.indexOf('Title *'),
+                description: headers.indexOf('Description'),
+                location: headers.indexOf('Location'),
+                appliesTo: headers.indexOf('Applies To'),
+                postDate: headers.indexOf('Date/Time to Post'),
+                removeDate: headers.indexOf('Date to Remove'),
+                postedBy: headers.indexOf('Posted by')
+            };
+
+            // Map each data row to an object
+            return lines.map(line => {
+                const values = [];
+                let inQuote = false;
+                let currentValue = '';
+
+                for (let i = 0; i < line.length; i++) {
+                    const char = line[i];
+
+                    if (char === '"') {
+                        if (inQuote && line[i + 1] === '"') {
+                            // Handle escaped quote ""
+                            currentValue += '"';
+                            i++; // Skip next quote
+                        } else {
+                            inQuote = !inQuote;
+                            // Don't add the quote to the value itself
+                        }
+                    } else if (char === ',' && !inQuote) {
+                        values.push(currentValue.trim());
+                        currentValue = '';
+                    } else {
+                        currentValue += char;
+                    }
+                }
+                values.push(currentValue.trim()); // Add the last value
+
+                if (values.length !== headers.length) {
+                    console.warn('Skipping malformed CSV line (length mismatch):', line, values.length, headers.length);
+                    return null; // Skip this line
+                }
+                
+                const item = {};
+                for (const key in headerMap) {
+                    if (headerMap[key] !== -1) {
+                        // Clean up quotes that might remain if not perfectly balanced
+                        item[key] = values[headerMap[key]]?.replace(/^"|"$/g, '').trim() || '';
+                    }
+                }
+                return item;
+            }).filter(item => item !== null); // Filter out malformed lines
+        }
+
+        /**
+         * Parses a date string in "MM/DD/YYYY HH:MM:SS" format into a local Date object.
+         * @param {string} dateString - The date string from the CSV.
+         * @param {string} defaultTime - 'start' (00:00:00) or 'end' (23:59:59) for date-only strings.
+         * @returns {Date} A Date object.
+         */
+        function parseCustomDate(dateString, defaultTime = 'start') {
+            if (!dateString) return new Date(NaN); // Return Invalid Date
+
+            // Example: "10/25/2025 11:58:00" or "10/24/2025"
+            const parts = dateString.split(' ');
+            
+            const dateParts = parts[0].split('/'); // ["10", "25", "2025"]
+            
+            let defaultTimeParts = ['0', '0', '0'];
+            if (defaultTime === 'end') {
+                defaultTimeParts = ['23', '59', '59'];
+            }
+
+            const timeParts = parts[1] ? parts[1].split(':') : defaultTimeParts; // ["11", "58", "00"] or default time
+
+            if (dateParts.length !== 3 || timeParts.length !== 3) {
+                return new Date(NaN);
+            }
+
+            try {
+                const year = parseInt(dateParts[2], 10);
+                const month = parseInt(dateParts[0], 10) - 1; // Month is 0-indexed
+                const day = parseInt(dateParts[1], 10);
+                const hours = parseInt(timeParts[0], 10);
+                const minutes = parseInt(timeParts[1], 10);
+                const seconds = parseInt(timeParts[2], 10);
+
+                // Create a date in the user's local timezone
+                return new Date(year, month, day, hours, minutes, seconds);
+            } catch (e) {
+                return new Date(NaN);
+            }
+        }
+
+        /**
+         * Filters the news items to only include those that are currently active.
+         * @param {Array<object>} items - The full list of news items.
+         * @returns {Array<object>} The filtered list of active news items.
+         */
+        function filterNewsByDate(items) {
+            const now = new Date();
+
+            return items.filter(item => {
+                // 1. Must have a postDate
+                if (!item.postDate) {
+                    console.warn('Skipping item with missing postDate:', item);
+                    return false; // Skip items without valid post dates
+                }
+                
+                try {
+                    // 2. postDate must be valid and in the past (or now)
+                    // Use 'start' for postDate: "10/25/2025" means "10/25/2025 00:00:00"
+                    const postDate = parseCustomDate(item.postDate, 'start');
+                    if (isNaN(postDate)) {
+                        throw new Error('Invalid postDate created');
+                    }
+                    
+                    if (now < postDate) {
+                        return false; // Not yet time to post this item
+                    }
+
+                    // 3. Check removeDate
+                    // If there is no removeDate, it's a permanent post. Show it.
+                    if (!item.removeDate) {
+                        return true; 
+                    }
+
+                    // If there IS a removeDate, parse it and check it
+                    // Use 'end' for removeDate: "10/27/2025" means "10/27/2025 23:59:59"
+                    const removeDate = parseCustomDate(item.removeDate, 'end');
+                    
+                    if (isNaN(removeDate)) {
+                        // The remove date is invalid, log a warning but assume it shouldn't be removed.
+                        console.warn('Invalid removeDate format for item. Treating as "no remove date":', item);
+                        return true; 
+                    }
+                    
+                    // Check if 'now' is before the removeDate
+                    return now < removeDate;
+
+                } catch (e) {
+                    console.warn('Error processing dates for item:', item, e.message);
+                    return false;
+                }
+            });
+        }
+
+        /**
+         * A simple function to escape HTML special characters to prevent XSS.
+         * @param {string} str - The string to escape.
+         * @returns {string} The escaped string.
+         */
+        function escapeHTML(str) {
+            if (!str) return '';
+            return str.replace(/[&<>"']/g, function(match) {
+                return {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#39;'
+                }[match];
+            });
+        }
+
+        /**
+         * Renders the news items into the DOM.
+         * @param {Array<object>} items - The filtered list of items to display.
+         */
+        function renderNewsItems(items) {
+            const container = document.getElementById('news-feed-container');
+
+            if (items.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center text-gray-400 bg-gray-800 p-12 rounded-xl shadow-sm border border-gray-700">
+                        <svg class="mx-auto h-12 w-12 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M17 17l-6-6-6 6" />
+                        </svg>
+                        <!-- Increased font size for "No News" state -->
+                        <h2 class="mt-4 text-2xl font-semibold text-gray-200 mb-2">No News Right Now</h2>
+                        <p class="text-lg text-gray-400">There are no current news items to display. Please check back later!</p>
+                    </div>`;
+                return;
+            }
+
+            // Sort by post date, newest first
+            const sortedItems = items.sort((a, b) => parseCustomDate(b.postDate) - parseCustomDate(a.postDate));
+
+            // --- NEW: Limit to a maximum of 4 items ---
+            // Take only the 4 newest items from the sorted list
+            const itemsToDisplay = sortedItems.slice(0, 4);
+
+            const itemsHtml = itemsToDisplay.map(item => {
+                // Format the post date for display
+                const displayDate = parseCustomDate(item.postDate).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                });
+
+                // Sanitize content before rendering (simple version)
+                const safeTitle = escapeHTML(item.title);
+                const safeDescription = escapeHTML(item.description);
+                const safePostedBy = escapeHTML(item.postedBy);
+                const safeLocation = escapeHTML(item.location);
+                const safeAppliesTo = escapeHTML(item.appliesTo);
+
+                // Added `break-inside-avoid` to prevent cards from splitting across columns
+                // Added `mb-8` to ensure vertical spacing between cards in the same column
+                return `
+                <article class="bg-gray-800 border border-gray-700 shadow-md rounded-xl overflow-hidden transition-all duration-300 hover:shadow-lg hover:bg-gray-700 break-inside-avoid mb-8">
+                    <div class="p-6">
+                        <!-- Increased font size for date -->
+                        <p class="text-base font-medium text-blue-400 mb-2">${displayDate}</p>
+                        <!-- Increased font size for title -->
+                        <h2 class="text-3xl lg:text-4xl font-bold text-gray-100 mb-3">${safeTitle}</h2>
+                        <!-- Increased font size for description -->
+                        <p class="text-lg text-gray-300 leading-relaxed mb-4 lg:text-xl lg:leading-relaxed">${safeDescription}</p>
+                    </div>
+                    <!-- Increased font size for footer -->
+                    <footer class="bg-gray-800 border-t border-gray-700 px-6 py-4 flex flex-col sm:flex-row flex-wrap gap-x-6 gap-y-3 text-base lg:text-lg text-gray-400">
+                        ${safePostedBy ? `<div class="flex items-center gap-2">
+                            <svg class="h-5 w-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" />
+                            </svg>
+                            <span><strong class="font-medium text-gray-200">Posted by:</strong> ${safePostedBy}</span>
+                        </div>` : ''}
+                        ${safeLocation ? `<div class="flex items-center gap-2">
+                            <svg class="h-5 w-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd" />
+                            </svg>
+                            <span><strong class="font-medium text-gray-200">Location:</strong> ${safeLocation}</span>
+                        </div>` : ''}
+                        ${safeAppliesTo ? `<div class="flex items-center gap-2">
+                            <svg class="h-5 w-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                <path d="M5.5 3.5A1.5 1.5 0 017 2h6a1.5 1.5 0 011.5 1.5v1.086a1.5 1.5 0 00.44 1.06l.82.82A1.5 1.5 0 0116.5 8.242V16.5A1.5 1.5 0 0115 18H5a1.5 1.5 0 01-1.5-1.5V8.242a1.5 1.5 0 01.72-1.276l.82-.82A1.5 1.5 0 005.5 4.586V3.5zM7 4h6V3H7v1z" />
+                            </svg>
+                            <span><strong class="font-medium text-gray-200">Applies To:</strong> ${safeAppliesTo}</span>
+                        </div>` : ''}
+                    </footer>
+                </article>
+                `;
+            }).join('');
+
+            container.innerHTML = itemsHtml;
+        }
+
+    </script>
+</body>
+</html>
+
+
+
