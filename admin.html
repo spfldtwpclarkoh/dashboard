@@ -37,6 +37,8 @@
                 <li><button data-tab="weather" class="nav-tab py-2 px-4 font-medium">Weather Widget</button></li>
                 <li><button data-tab="logo" class="nav-tab py-2 px-4 font-medium">Logo</button></li>
                 <li><button data-tab="gslides" class="nav-tab py-2 px-4 font-medium">Google Slides</button></li>
+                <!-- *** NEW: News Feed Tab *** -->
+                <li><button data-tab="news" class="nav-tab py-2 px-4 font-medium">News Feed</button></li>
                 <li><button data-tab="nws" class="nav-tab py-2 px-4 font-medium">NWS/IPAWS Alerts</button></li>
                 <li><button data-tab="slide-management" class="nav-tab py-2 px-4 font-medium">Slide Management</button></li>
             </ul>
@@ -133,6 +135,23 @@
                             </div>
                         </fieldset>
                     </div>
+
+                    <!-- *** NEW: News Feed Tab Panel *** -->
+                    <div id="tab-news" class="tab-panel">
+                        <fieldset class="border-b border-gray-200 py-6">
+                            <legend class="text-lg font-medium text-gray-900">Rolling News Feed</legend>
+                            <p class="text-sm text-gray-600 mt-2">
+                                Settings for the standalone news feed slide (`rolling_news.html`).
+                                The Google Sheet URL is managed inside the file itself.
+                            </p>
+                            <div class="form-grid mt-4">
+                                <div>
+                                    <label for="newsFeed_secondsPerItem" class="block text-sm font-medium text-gray-700">Seconds Per Slide</label>
+                                    <input type="number" id="newsFeed_secondsPerItem" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 text-black">
+                                </div>
+                            </div>
+                        </fieldset>
+                    </div>
                     
                     <!-- TAB 4: NWS/IPAWS -->
                     <div id="tab-nws" class="tab-panel">
@@ -151,7 +170,7 @@
                         </fieldset>
                     </div>
 
-                    <!-- This save button applies to all 4 config tabs -->
+                    <!-- This save button applies to all config tabs -->
                     <div class="flex justify-end mt-6">
                         <button type="submit" class="inline-flex justify-center rounded-lg border border-transparent bg-blue-600 py-2 px-6 text-base font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
                             Save Settings
@@ -292,6 +311,9 @@
                     document.getElementById('googleSlides_delayPerSlideSeconds').value = config.googleSlides_delayPerSlideSeconds || 15;
                     document.getElementById('googleSlides_refreshIntervalMinutes').value = config.googleSlides_refreshIntervalMinutes || 60;
 
+                    // *** NEW: Load News Feed Config ***
+                    document.getElementById('newsFeed_secondsPerItem').value = config.newsFeed_secondsPerItem || 20;
+
                     document.getElementById('nwsAlertZone').value = config.nwsAlertZone || 'OHZ054';
                     document.getElementById('nwsAlertRefreshSeconds').value = config.nwsAlertRefreshSeconds || 300;
 
@@ -313,6 +335,8 @@
                     document.getElementById('weather_refreshIntervalMinutes').value = 10;
                     document.getElementById('googleSlides_delayPerSlideSeconds').value = 15;
                     document.getElementById('googleSlides_refreshIntervalMinutes').value = 60;
+                    // *** NEW: Default News Feed Config ***
+                    document.getElementById('newsFeed_secondsPerItem').value = 20;
                     document.getElementById('nwsAlertZone').value = 'OHZ054';
                     document.getElementById('nwsAlertRefreshSeconds').value = 300;
                     // NEW: Set default logo preview
@@ -408,6 +432,9 @@
                 googleSlides_embedUrlBase: document.getElementById('googleSlides_embedUrlBase').value,
                 googleSlides_delayPerSlideSeconds: parseInt(document.getElementById('googleSlides_delayPerSlideSeconds').value, 10),
                 googleSlides_refreshIntervalMinutes: parseInt(document.getElementById('googleSlides_refreshIntervalMinutes').value, 10),
+
+                // *** NEW: Save News Feed Config ***
+                newsFeed_secondsPerItem: parseInt(document.getElementById('newsFeed_secondsPerItem').value, 10),
 
                 nwsAlertZone: document.getElementById('nwsAlertZone').value,
                 nwsAlertRefreshSeconds: parseInt(document.getElementById('nwsAlertRefreshSeconds').value, 10),
@@ -689,4 +716,3 @@
     </script>
 </body>
 </html>
-

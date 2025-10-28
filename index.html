@@ -123,7 +123,20 @@
         let contentIndex = 0;
         let activeSlideIndex = 0;
         // This is the special Google Slides object. It will be merged with data from Firestore.
-        const googleSlideSource = { type: 'googleslides', iframe: ``, duration: 20000 };
+        const googleSlideSource = { 
+            type: 'googleslides', 
+            iframe: ``, 
+            duration: 20000,
+            order: 1 // NEW: Give a default order
+        };
+        
+        // *** NEW: Special News Feed slide object ***
+        const newsFeedSlideSource = {
+            type: 'newsfeed',
+            iframe: `<iframe title="News Feed" src="./rolling_news.html" frameborder="0" class="w-full h-full"></iframe>`,
+            duration: 60000, // Default 60s, will be updated by postMessage
+            order: 2 // NEW: Give a default order (runs after Google Slides)
+        };
 
 
         // ------------------------------
@@ -140,6 +153,19 @@
                 } else {
                     tickerFooter.classList.add('hidden');
                     clockContainer.classList.remove('md:mb-20');
+                }
+            }
+
+            // *** NEW: Listen for messages from the News Feed iframe ***
+            if (event.data && event.data.type === 'newsFeedDuration') {
+                const newDuration = event.data.totalDuration;
+                console.log(`[Dashboard] Received news feed duration: ${newDuration}ms`);
+                
+                // Find the news feed slide source and update its duration
+                const newsSlide = slideSources.find(s => s.type === 'newsfeed');
+                if (newsSlide) {
+                    newsSlide.duration = newDuration;
+                    console.log(`[Dashboard] News feed slide duration set to ${newDuration}ms. (Will be skipped if 0)`);
                 }
             }
         });
@@ -217,12 +243,19 @@
 
                 const delayMs = slidesConfig.googleSlides_delayPerSlideSeconds * 1000;
                 const totalDuration = slideCount * delayMs;
+                // *** NEW: Check for 0 delayMs, which causes Google Slides to use its default
+                if (delayMs <= 0) {
+                    console.warn("Google Slides delay is 0, duration cannot be calculated. Using default 20s.");
+                    slidesSource.duration = 20000; // Fallback
+                } else {
+                    slidesSource.duration = totalDuration;
+                }
+                
                 const embedUrl = `${slidesConfig.googleSlides_embedUrlBase}&delayms=${delayMs}`;
                 const iframeHtml = `<iframe title="Google Slides" src="${embedUrl}" frameborder="0" class="w-full h-full"></iframe>`;
 
                 slidesSource.iframe = iframeHtml;
-                slidesSource.duration = totalDuration;
-                console.log(`Google Slides configured with ${slideCount} slides for a total duration of ${totalDuration / 1000}s.`);
+                console.log(`Google Slides configured with ${slideCount} slides for a total duration of ${slidesSource.duration / 1000}s.`);
 
             } catch (error) {
                 console.error("Error setting up Google Slides:", error);
@@ -252,6 +285,7 @@
             const initialIndex = contentIndex;
             
             while (source.duration === 0) {
+                console.log(`Skipping slide "${source.type || source.iframe.substring(0, 50)}" (duration is 0).`);
                 contentIndex = (contentIndex + 1) % slideSources.length;
                 source = slideSources[contentIndex];
                 if (contentIndex === initialIndex) { 
@@ -313,7 +347,20 @@
             }
 
             contentIndex = 0;
-            const firstSource = slideSources[0];
+            // *** UPDATED: Find first slide with duration > 0 ***
+            let firstSource = slideSources[contentIndex];
+            const initialIndex = contentIndex;
+            while (firstSource.duration === 0) {
+                contentIndex = (contentIndex + 1) % slideSources.length;
+                firstSource = slideSources[contentIndex];
+                if (contentIndex === initialIndex) { 
+                    console.warn("All slides have a duration of 0 or are unavailable. Halting rotation."); 
+                    slideDivs[0].innerHTML = `<div class="w-full h-full flex items-center justify-center bg-gray-800 text-yellow-300 p-8 text-center text-2xl">All slides are currently disabled (duration 0).</div>`;
+                    slideDivs[0].classList.add('opacity-100');
+                    return; 
+                }
+            }
+            
             slideDivs[0].innerHTML = firstSource.iframe;
             slideDivs[1].innerHTML = '';
             slideDivs[1].classList.remove('opacity-100');
@@ -563,7 +610,8 @@
             const slidesQuery = query(collection(db, 'slides'), orderBy('order'));
             onSnapshot(slidesQuery, (snapshot) => {
                 console.log("Slide configuration updated from Firestore.");
-                const newSlideSources = [googleSlideSource]; // Always start with Google Slides
+                // *** UPDATED: Always start with special slides ***
+                const newSlideSources = [googleSlideSource, newsFeedSlideSource]; 
                 
                 snapshot.docs.forEach(doc => {
                     const data = doc.data();
@@ -574,11 +622,15 @@
                     }
                 });
 
+                // *** NEW: Sort all slides by order ***
+                newSlideSources.sort((a, b) => (a.order || 99) - (b.order || 99));
+
                 slideSources = newSlideSources; // Update the global slideSources array
                 startRotation(); // Restart the slide rotation with the new data
             }, (error) => {
                 console.error("Error listening to slides collection: ", error);
-                slideSources = [googleSlideSource]; // Fallback to just Google Slides
+                // *** UPDATED: Fallback to special slides ***
+                slideSources = [googleSlideSource, newsFeedSlideSource].sort((a, b) => a.order - b.order);
                 startRotation();
             });
         }
