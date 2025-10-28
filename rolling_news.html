@@ -220,15 +220,28 @@
             const slides = document.querySelectorAll('.feed-item');
             if (slides.length === 0) return;
 
-            currentSlideIndex = 0;
-            slides[currentSlideIndex].classList.remove('opacity-0');
+            // Clear any existing interval from a previous run
+            if (slideInterval) clearInterval(slideInterval); 
 
-            if (postCount <= 1) return;
+            currentSlideIndex = 0;
+            slides[currentSlideIndex].classList.remove('opacity-0'); // Show the first slide
+
+            if (postCount <= 1) return; // Don't do anything else if there's only one slide
+
+            let slideIndex = 0; // Use a local index for the loop
 
             slideInterval = setInterval(() => {
-                slides[currentSlideIndex].classList.add('opacity-0');
-                currentSlideIndex = (currentSlideIndex + 1) % postCount;
-                slides[currentSlideIndex].classList.remove('opacity-0');
+                if (slideIndex < postCount - 1) {
+                    // We are not on the last slide, so transition to the next
+                    slides[slideIndex].classList.add('opacity-0'); // Fade out current
+                    slideIndex++;
+                    slides[slideIndex].classList.remove('opacity-0'); // Fade in next
+                } else {
+                    // This was the last slide, clear the interval and stop
+                    clearInterval(slideInterval);
+                    slideInterval = null;
+                    console.log('[NewsFeed] End of slideshow, stopping on last post.');
+                }
             }, SECONDS_PER_ITEM * 1000);
         }
 
@@ -305,4 +318,5 @@
     </script>
 </body>
 </html>
+
 
