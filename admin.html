@@ -40,6 +40,8 @@
                 <!-- *** NEW: News Feed Tab *** -->
                 <li><button data-tab="news" class="nav-tab py-2 px-4 font-medium">News Feed</button></li>
                 <li><button data-tab="nws" class="nav-tab py-2 px-4 font-medium">NWS/IPAWS Alerts</button></li>
+                <!-- *** NEW: Active911 Tab *** -->
+                <li><button data-tab="active911" class="nav-tab py-2 px-4 font-medium">Active911</button></li>
                 <li><button data-tab="slide-management" class="nav-tab py-2 px-4 font-medium">Slide Management</button></li>
             </ul>
         </nav>
@@ -165,6 +167,34 @@
                                 <div>
                                     <label for="nwsAlertRefreshSeconds" class="block text-sm font-medium text-gray-700">Alert Refresh (sec)</label>
                                     <input type="number" id="nwsAlertRefreshSeconds" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 text-black">
+                                </div>
+                            </div>
+                        </fieldset>
+                    </div>
+
+                    <!-- NEW: Active911 Tab Panel -->
+                    <div id="tab-active911" class="tab-panel">
+                        <fieldset class="border-b border-gray-200 py-6">
+                            <legend class="text-lg font-medium text-gray-900">Active911 Alerts</legend>
+                            <p class="text-sm text-gray-600 mt-2">
+                                Polls Active911 for new alerts for a specific department.
+                            </p>
+                            <div class="form-grid mt-4">
+                                <div class="col-span-1 md:col-span-2">
+                                    <label for="active911_apiToken" class="block text-sm font-medium text-gray-700">API Token</label>
+                                    <input type="password" id="active911_apiToken" placeholder="Your Active911 API Token" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 text-black">
+                                </div>
+                                <div>
+                                    <label for="active911_departmentId" class="block text-sm font-medium text-gray-700">Department ID</label>
+                                    <input type="number" id="active911_departmentId" placeholder="1234" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 text-black">
+                                </div>
+                                <div>
+                                    <label for="active911_pollIntervalSeconds" class="block text-sm font-medium text-gray-700">Poll Interval (seconds)</label>
+                                    <input type="number" id="active911_pollIntervalSeconds" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 text-black">
+                                </div>
+                                <div>
+                                    <label for="active911_alertDurationSeconds" class="block text-sm font-medium text-gray-700">Alert Display (seconds)</label>
+                                    <input type="number" id="active911_alertDurationSeconds" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 text-black">
                                 </div>
                             </div>
                         </fieldset>
@@ -317,6 +347,12 @@
                     document.getElementById('nwsAlertZone').value = config.nwsAlertZone || 'OHZ054';
                     document.getElementById('nwsAlertRefreshSeconds').value = config.nwsAlertRefreshSeconds || 300;
 
+                    // NEW: Load Active911 config
+                    document.getElementById('active911_apiToken').value = config.active911_apiToken || '';
+                    document.getElementById('active911_departmentId').value = config.active911_departmentId || '';
+                    document.getElementById('active911_pollIntervalSeconds').value = config.active911_pollIntervalSeconds || 60;
+                    document.getElementById('active911_alertDurationSeconds').value = config.active911_alertDurationSeconds || 60;
+
                     // NEW: Load logo URL and preview
                     document.getElementById('logo_url').value = config.logoUrl || '';
                     const preview = document.getElementById('logo-preview');
@@ -339,6 +375,9 @@
                     document.getElementById('newsFeed_secondsPerItem').value = 20;
                     document.getElementById('nwsAlertZone').value = 'OHZ054';
                     document.getElementById('nwsAlertRefreshSeconds').value = 300;
+                    // NEW: Default Active911 config
+                    document.getElementById('active911_pollIntervalSeconds').value = 60;
+                    document.getElementById('active911_alertDurationSeconds').value = 60;
                     // NEW: Set default logo preview
                     document.getElementById('logo_preview').src = 'https://placehold.co/200x100/f1f5f9/94a3b8?text=No+Logo+Set';
                 }
@@ -439,6 +478,12 @@
                 nwsAlertZone: document.getElementById('nwsAlertZone').value,
                 nwsAlertRefreshSeconds: parseInt(document.getElementById('nwsAlertRefreshSeconds').value, 10),
                 
+                // NEW: Save Active911 config
+                active911_apiToken: document.getElementById('active911_apiToken').value,
+                active911_departmentId: parseInt(document.getElementById('active911_departmentId').value, 10) || null,
+                active911_pollIntervalSeconds: parseInt(document.getElementById('active911_pollIntervalSeconds').value, 10),
+                active911_alertDurationSeconds: parseInt(document.getElementById('active911_alertDurationSeconds').value, 10),
+
                 // NEW: Add logoUrl to the save object
                 logoUrl: document.getElementById('logo_url').value,
 

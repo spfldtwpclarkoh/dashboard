@@ -77,6 +77,11 @@
     <!-- Alert content will be injected here -->
   </div>
   
+  <!-- NEW: Active911 Alert Overlay -->
+  <div id="active911AlertOverlay" class="fixed inset-0 bg-black bg-opacity-95 text-white flex justify-center items-center z-[10000] p-5 opacity-0 invisible transition-opacity duration-500">
+      <!-- Active911 content will be injected here -->
+  </div>
+
   <!-- Ticker Iframe -->
   <footer id="ticker-footer" class="fixed bottom-0 left-0 w-full h-20 z-50 hidden">
     <iframe src="ticker.html" class="w-full h-full border-none"></iframe>
@@ -111,12 +116,14 @@
         let dashboardConfig = null; // Will hold settings from Firestore
         let slideSources = []; // Will hold slides from Firestore
         const shownAlerts = new Set();
+        const shownActive911Alerts = new Set(); // NEW
         
         // NEW: Interval timers
         let ipawsInterval = null;
         let weatherInterval = null;
         let slidesRefreshInterval = null;
         let slideRotationTimer = null;
+        let active911Interval = null; // NEW
 
         // Slide rotation state
         const slideDivs = document.querySelectorAll('.slide');
@@ -406,6 +413,43 @@
           }, duration);
         }
 
+        // NEW: Active911 Alert Display
+        function showActive911Alert(alertData) {
+            const overlay = document.getElementById("active911AlertOverlay");
+            
+            // Format the alert data into HTML
+            // Active911 data structure: description, call_type, address, units, notes
+            const unitsString = (alertData.units || []).join(', ');
+            
+            // Simple formatter for address
+            let address = alertData.address || 'Address not specified';
+            if (alertData.city) address += `, ${alertData.city}`;
+
+            const alertHTML = `
+                <div class="w-full max-w-5xl bg-red-800 border-8 border-yellow-400 rounded-lg shadow-2xl p-8 text-left animate-pulse">
+                    <h1 class="text-6xl md:text-8xl font-black text-yellow-400 mb-4">${alertData.call_type || 'NEW CALL'}</h1>
+                    <p class="text-4xl md:text-5xl font-bold mb-6">${address}</p>
+                    <div class="text-2xl md:text-3xl space-y-3">
+                        <p><strong class="text-yellow-300 w-32 inline-block">Units:</strong> ${unitsString || 'N/A'}</p>
+                        <p><strong class="text-yellow-300 w-32 inline-block">Details:</strong> ${alertData.description || 'No details'}</p>
+                        ${alertData.notes ? `<p><strong class="text-yellow-300 w-32 inline-block">Notes:</strong> ${alertData.notes}</p>` : ''}
+                    </div>
+                </div>
+            `;
+
+            overlay.innerHTML = alertHTML;
+            overlay.classList.remove('invisible', 'opacity-0');
+            overlay.classList.add('opacity-100');
+            playAlertSound('alarm'); // Use the 'alarm' tone for this
+
+            const duration = (dashboardConfig.active911_alertDurationSeconds || 60) * 1000;
+            
+            setTimeout(() => {
+                overlay.classList.remove('opacity-100');
+                overlay.classList.add('invisible', 'opacity-0');
+            }, duration);
+        }
+
         async function fetchIPAWSAlerts() {
           // NEW: Guard against config not being loaded
           if (!dashboardConfig || !dashboardConfig.nwsAlertZone) {
@@ -434,6 +478,53 @@
           } catch (err) {
             console.error("IPAWS/NWS alert fetch failed:", err);
           }
+        }
+
+        // NEW: Active911 Alert Fetch
+        async function fetchActive911Alerts() {
+            if (!dashboardConfig || !dashboardConfig.active911_apiToken || !dashboardConfig.active911_departmentId) {
+                console.warn("Active911 fetch skipped, config not loaded or token/ID not set.");
+                return;
+            }
+
+            const token = dashboardConfig.active911_apiToken;
+            const deptId = dashboardConfig.active911_departmentId;
+            // Using the v2 API endpoint for recent alerts
+            const apiUrl = `https://api.active911.com/api/v2/alerts/recent?token=${token}&agency_ids[]=${deptId}`;
+
+            try {
+                const response = await fetch(apiUrl);
+                if (!response.ok) {
+                    // Check for auth error
+                    if (response.status === 401) {
+                        console.error("Active911 API request failed: Unauthorized. Check your API Token.");
+                        // Stop polling if token is bad
+                        if (active911Interval) clearInterval(active911Interval);
+                    } else {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return;
+                }
+                
+                const data = await response.json();
+
+                if (data.alerts && data.alerts.length > 0) {
+                    for (const alert of data.alerts) {
+                        // The API filters by agency_id, but we double-check
+                        if (alert.agency_id == deptId && !shownActive911Alerts.has(alert.id)) {
+                            console.log("New Active911 Alert found:", alert);
+                            shownActive911Alerts.add(alert.id);
+                            showActive911Alert(alert);
+                            
+                            // If we show an alert, stop checking this batch
+                            // This prevents showing multiple old alerts on first load
+                            break; 
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error("Active911 alert fetch failed:", err);
+            }
         }
         
         // ------------------------------
@@ -541,10 +632,12 @@
                     if (ipawsInterval) clearInterval(ipawsInterval);
                     if (weatherInterval) clearInterval(weatherInterval);
                     if (slidesRefreshInterval) clearInterval(slidesRefreshInterval);
+                    if (active911Interval) clearInterval(active911Interval); // NEW
 
                     // Trigger initial fetches with new config
                     fetchIPAWSAlerts();
                     fetchToolbarWeather();
+                    fetchActive911Alerts(); // NEW
                     
                     // --- *** BEGIN FIX *** ---
                     if (firstConfigLoad) {
@@ -567,6 +660,13 @@
                     
                     const weatherRefreshMs = Math.max(dashboardConfig.weather_refreshIntervalMinutes || 10, 1) * 60 * 1000;
                     weatherInterval = setInterval(fetchToolbarWeather, weatherRefreshMs);
+
+                    // NEW: Active911 Interval
+                    if (dashboardConfig.active911_apiToken && dashboardConfig.active911_departmentId) {
+                        // Use Math.max to ensure interval is at least 10 seconds to avoid rate limiting
+                        const active911RefreshMs = Math.max(dashboardConfig.active911_pollIntervalSeconds || 60, 10) * 1000;
+                        active911Interval = setInterval(fetchActive911Alerts, active911RefreshMs);
+                    }
 
                     if (dashboardConfig.googleSlides_refreshIntervalMinutes > 0) {
                         const slidesRefreshMs = dashboardConfig.googleSlides_refreshIntervalMinutes * 60 * 1000;
@@ -666,4 +766,3 @@
 
 </body>
 </html>
-
