@@ -565,8 +565,8 @@
             }
 
             const weather = dashboardConfig; // Use the loaded config
-            // *** UPDATED: Fixed URL typo https:: to https:// ***
-            const apiUrl = `httpshttps://api.open-meteo.com/v1/forecast?latitude=${weather.weather_latitude}&longitude=${weather.weather_longitude}&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min&temperature_unit=fahrenheit&timezone=auto`;
+            // *** FIX: Removed extra 'https' from URL ***
+            const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${weather.weather_latitude}&longitude=${weather.weather_longitude}&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min&temperature_unit=fahrenheit&timezone=auto`;
             
             const tempEl = document.getElementById('weather-temp');
             const conditionEl = document.getElementById('weather-condition');
