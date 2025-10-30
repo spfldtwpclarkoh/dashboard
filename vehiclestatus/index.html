@@ -246,7 +246,8 @@
                     const styles = getStatusStyles(status);
 
                     // Add status border, dark mode bg, increased padding
-                    card.className = `bg-white dark:bg-gray-700 rounded-lg shadow-lg p-6 flex flex-col ${styles.cardBorder} transition-all duration-300 hover:shadow-xl hover:-translate-y-1`;
+                    // --- MODIFICATION: Changed dark:bg-gray-700 to dark:bg-gray-800 ---
+                    card.className = `bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 flex flex-col ${styles.cardBorder} transition-all duration-300 hover:shadow-xl hover:-translate-y-1`;
                     // --- End New Style Logic ---
 
                     let cardContent = '';
