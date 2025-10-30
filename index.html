@@ -566,7 +566,7 @@
 
             const weather = dashboardConfig; // Use the loaded config
             // *** UPDATED: Fixed URL typo https:: to https:// ***
-            const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${weather.weather_latitude}&longitude=${weather.weather_longitude}&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min&temperature_unit=fahrenheit&timezone=auto`;
+            const apiUrl = `httpshttps://api.open-meteo.com/v1/forecast?latitude=${weather.weather_latitude}&longitude=${weather.weather_longitude}&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min&temperature_unit=fahrenheit&timezone=auto`;
             
             const tempEl = document.getElementById('weather-temp');
             const conditionEl = document.getElementById('weather-condition');
@@ -612,11 +612,10 @@
         function initializeConfigListener() {
             const configDocRef = doc(db, 'config', 'global');
             
-            // *** BEGIN FIX ***
-            let firstConfigLoad = true; // NEW: Flag for first load
-            // *** END FIX ***
+            let firstConfigLoad = true; 
 
-            onSnapshot(configDocRef, (docSnap) => {
+            // *** UPDATED: Made the onSnapshot callback async ***
+            onSnapshot(configDocRef, async (docSnap) => {
                 if (docSnap.exists()) {
                     console.log("Global config loaded/updated.");
                     dashboardConfig = docSnap.data();
@@ -648,13 +647,13 @@
                         console.log("Attaching persistent listeners for alerts and slides.");
                         initializeAlertListener(); 
                         initializeSlideListener(); // This will call startRotation() on its own
+                        initializeForceReloadListener(); // *** NEW ***
                         firstConfigLoad = false;
                     } else {
-                        // On subsequent loads (manual refresh), just restart rotation
-                        console.log("Config reloaded, restarting slide rotation.");
-                        // We must call startRotation() to re-run setupGoogleSlides()
-                        // This will pick up new URLs or durations from the new config.
-                        startRotation();
+                        // On subsequent loads (manual refresh), just re-fetch Google Slides data
+                        // DO NOT call startRotation(), to avoid resetting the slide show
+                        console.log("Config reloaded. Re-fetching Google Slides data.");
+                        await setupGoogleSlides();
                     }
                     // --- *** END FIX *** ---
 
@@ -750,6 +749,27 @@
             }, (error) => {
                 console.error("Error with Firestore test_active911 listener: ", error);
                 isDeletingTestAlert = false; // NEW: Reset on error
+            });
+        }
+
+        // --- NEW: Listens for a force reload signal ---
+        function initializeForceReloadListener() {
+            const forceReloadDocRef = doc(db, 'alerts', 'force_reload');
+
+            onSnapshot(forceReloadDocRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    console.warn("FORCE RELOAD signal received. Deleting signal and reloading page from server...");
+                    
+                    // Delete the doc first to prevent reload loops
+                    deleteDoc(forceReloadDocRef).then(() => {
+                        // Reload from server, bypassing cache
+                        window.location.reload(true);
+                    }).catch((err) => {
+                        console.error("Error deleting force_reload doc. Reloading anyway.", err);
+                        // Force reload even if delete fails
+                        window.location.reload(true);
+                    });
+                }
             });
         }
 
