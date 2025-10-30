@@ -19,19 +19,20 @@
             color: #F9FAFB; /* text-gray-100 */
         }
 
-        /* Custom scrollbar for hourly forecast */
-        .hourly-forecast::-webkit-scrollbar {
-            height: 6px;
+        /* Custom scrollbar for widgets */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
         }
-        .hourly-forecast::-webkit-scrollbar-track {
+        .custom-scrollbar::-webkit-scrollbar-track {
             background: #374151; /* bg-gray-700 */
             border-radius: 10px;
         }
-        .hourly-forecast::-webkit-scrollbar-thumb {
+        .custom-scrollbar::-webkit-scrollbar-thumb {
             background: #6B7280; /* bg-gray-500 */
             border-radius: 10px;
         }
-        .hourly-forecast::-webkit-scrollbar-thumb:hover {
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
             background: #9CA3AF; /* bg-gray-400 */
         }
 
@@ -53,21 +54,21 @@
         }
     </style>
 </head>
-<body class="p-8 md:p-12">
+<body class="p-4 md:p-6 h-screen overflow-hidden">
 
-    <div class="">
+    <div class="h-full flex flex-col">
 
         <!-- STATUS MESSAGES -->
-        <div id="status-container" class="text-center my-24">
+        <div id="status-container" class="text-center mb-6 flex-shrink-0">
             <div id="loader" class="loader mx-auto hidden"></div>
             <div id="error-message" class="text-red-400 text-2xl hidden"></div>
         </div>
 
         <!-- WIDGETS GRID -->
-        <main id="weather-widgets" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-8 hidden">
+        <main id="weather-widgets" class="grid grid-cols-1 md:grid-cols-2 gap-8 hidden flex-grow min-h-0">
 
             <!-- WIDGET: CURRENT WEATHER -->
-            <div class="md:col-span-1 lg:col-span-1 bg-gray-800 p-8 rounded-2xl shadow-lg flex flex-col items-center text-center">
+            <div class="md:col-span-1 bg-gray-800 p-8 rounded-2xl shadow-lg flex flex-col items-center text-center justify-center">
                 <span id="current-city" class="text-4xl font-semibold">Springfield</span>
                 <div id="current-icon" class="w-32 h-32 my-4"><!-- SVG icon goes here --></div>
                 <span id="current-temp" class="text-8xl font-bold">72°</span>
@@ -76,7 +77,7 @@
             </div>
             
             <!-- WIDGET: WEATHER DETAILS -->
-            <div class="md:col-span-2 lg:col-span-3 bg-gray-800 p-8 rounded-2xl shadow-lg">
+            <div class="md:col-span-1 bg-gray-800 p-8 rounded-2xl shadow-lg">
                 <h2 class="text-3xl font-semibold mb-6">Current Details</h2>
                 <div class="grid grid-cols-2 sm:grid-cols-3 gap-6">
                     <!-- Detail Item -->
@@ -108,17 +109,17 @@
             </div>
 
             <!-- WIDGET: HOURLY FORECAST -->
-            <div class="md:col-span-3 lg:col-span-4 bg-gray-800 p-8 rounded-2xl shadow-lg">
-                <h2 class="text-3xl font-semibold mb-6">Hourly Forecast</h2>
-                <div id="hourly-forecast-container" class="hourly-forecast flex overflow-x-auto gap-6 pb-2">
+            <div class="md:col-span-1 bg-gray-800 p-6 rounded-2xl shadow-lg flex flex-col">
+                <h2 class="text-3xl font-semibold mb-4 flex-shrink-0">Hourly Forecast</h2>
+                <div id="hourly-forecast-container" class="space-y-3">
                     <!-- Hourly items will be injected by JS -->
                 </div>
             </div>
             
             <!-- WIDGET: 5-DAY FORECAST -->
-            <div class="md:col-span-3 lg:col-span-4 bg-gray-800 p-8 rounded-2xl shadow-lg">
-                <h2 class="text-3xl font-semibold mb-6">5-Day Forecast</h2>
-                <div id="daily-forecast-container" class="space-y-4">
+            <div class="md:col-span-1 bg-gray-800 p-6 rounded-2xl shadow-lg flex flex-col">
+                <h2 class="text-3xl font-semibold mb-4 flex-shrink-0">5-Day Forecast</h2>
+                <div id="daily-forecast-container" class="space-y-3">
                     <!-- Daily items will be injected by JS -->
                 </div>
             </div>
@@ -254,7 +255,7 @@
             }
             
             // Parse hourly data
-            const hourly = hourlyData.properties.periods.slice(0, 8).map(period => ({
+            const hourly = hourlyData.properties.periods.slice(0, 5).map(period => ({ // Get 5 hours
                 time: new Date(period.startTime).getTime(),
                 temp: period.temperature,
                 description: period.shortForecast
@@ -297,11 +298,11 @@
             hourlyContainer.innerHTML = ''; // Clear old data
             data.hourly.forEach(hour => {
                 const hourEl = document.createElement('div');
-                hourEl.className = 'flex flex-col items-center flex-shrink-0 w-28 p-4 bg-gray-700 rounded-lg';
+                hourEl.className = 'flex items-center justify-between p-3 bg-gray-700 rounded-lg flex-shrink-0';
                 hourEl.innerHTML = `
-                    <span class="text-lg text-gray-400">${formatTime(hour.time)}</span>
-                    <div class="w-12 h-12 my-2">${getWeatherIcon(hour.description)}</div>
-                    <span class="text-2xl font-medium">${hour.temp}°</span>
+                    <span class="text-lg text-gray-400 w-1/3">${formatTime(hour.time)}</span>
+                    <div class="w-10 h-10">${getWeatherIcon(hour.description, 'w-10 h-10')}</div>
+                    <span class="text-2xl font-medium w-1/3 text-right">${hour.temp}°</span>
                 `;
                 hourlyContainer.appendChild(hourEl);
             });
@@ -310,7 +311,7 @@
             dailyContainer.innerHTML = ''; // Clear old data
             data.daily.forEach(day => {
                 const dayEl = document.createElement('div');
-                dayEl.className = 'flex items-center justify-between p-5 bg-gray-700 rounded-lg';
+                dayEl.className = 'flex items-center justify-between p-4 bg-gray-700 rounded-lg';
                 dayEl.innerHTML = `
                     <span class="text-2xl font-medium w-1/4">${formatDay(day.time)}</span>
                     <div class="flex items-center gap-2 w-1/4">
@@ -342,13 +343,24 @@
             let iconKey = 'Cloudy'; // Default
             const description = desc.toLowerCase();
             
-            if (description.includes('sunny')) iconKey = 'Sunny';
+            if (description.includes('sunny') || description.includes('clear')) iconKey = 'Sunny';
             else if (description.includes('partly cloudy') || description.includes('mostly sunny')) iconKey = 'Partly Cloudy';
-            else if (description.includes('cloudy') || description.includes('mostly cloudy')) iconKey = 'Cloudy';
+            else if (description.includes('cloudy') || description.includes('mostly cloudy')) iconKey = 'CloudY';
             else if (description.includes('rain') || description.includes('shower')) iconKey = 'Rain';
             else if (description.includes('snow')) iconKey = 'Snow';
             
-            return WEATHER_ICONS[iconKey].replace('width="24" height="24"', `class="${classes}"`);
+            // Check for more specific icons
+            if (WEATHER_ICONS[iconKey]) {
+                 return WEATHER_ICONS[iconKey].replace('width="24" height="24"', `class="${classes}"`);
+            } else {
+                // Fallback for descriptions we didn't match
+                if (description.includes('sunny') || description.includes('clear')) iconKey = 'Sunny';
+                else if (description.includes('cloudy')) iconKey = 'Cloudy';
+                else if (description.includes('rain')) iconKey = 'Rain';
+                else if (description.includes('snow')) iconKey = 'Snow';
+                else iconKey = 'Cloudy'; // Default fallback
+                return WEATHER_ICONS[iconKey].replace('width="24" height="24"', `class="${classes}"`);
+            }
         }
 
         function getUvDescription(uv) {
@@ -360,11 +372,11 @@
         }
 
         function formatTime(timestamp) {
-            return new Date(timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+            return new Date(timestamp).toLocaleTimeString('en-US', { hour: 'numeric', hour12: true });
         }
 
         function formatDay(timestamp) {
-            return new Date(timestamp).toLocaleDateString('en-US', { weekday: 'short' });
+            return new Date(timestamp).toLocaleDateString('en-US', { weekday: 'long' });
         }
         
         // --- Initial Load ---
@@ -376,8 +388,6 @@
     </script>
 </body>
 </html>
-
-
 
 
 
