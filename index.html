@@ -565,6 +565,7 @@
             }
 
             const weather = dashboardConfig; // Use the loaded config
+            // *** UPDATED: Fixed URL typo https:: to https:// ***
             const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${weather.weather_latitude}&longitude=${weather.weather_longitude}&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min&temperature_unit=fahrenheit&timezone=auto`;
             
             const tempEl = document.getElementById('weather-temp');
@@ -691,8 +692,11 @@
         // --- Listens for manual alerts ---
         function initializeAlertListener() {
             const alertDocRef = doc(db, 'alerts', 'manual_alert');
+            let isDeletingManualAlert = false; // NEW: Latch flag
+
             onSnapshot(alertDocRef, (docSnap) => {
-                if (docSnap.exists()) {
+                if (docSnap.exists() && !isDeletingManualAlert) { // NEW: Check flag
+                    isDeletingManualAlert = true; // NEW: Set flag
                     console.log("Remote alert received:", docSnap.data());
                     const alertData = docSnap.data();
                     if (alertData && alertData.message && alertData.duration) {
@@ -700,17 +704,29 @@
                             `<div class="text-center"><h1 class="text-6xl md:text-7xl font-black mb-4">${alertData.title}</h1><p class="text-4xl md:text-5xl font-bold">${alertData.message}</p></div>` : 
                             alertData.message;
                         showIPAWSAlert(displayMessage, alertData.duration, alertData.tone || 'default');
-                        setTimeout(() => deleteDoc(alertDocRef), 2000); 
+                        
+                        // NEW: Delete doc immediately and reset flag on completion
+                        deleteDoc(alertDocRef).catch((err) => {
+                            console.error("Error deleting manual alert doc:", err);
+                            // *** UPDATED: DO NOT reset latch on permission error ***
+                            // isDeletingManualAlert = false; // Reset on error
+                        });
                     }
+                } else if (!docSnap.exists()) {
+                    isDeletingManualAlert = false; // NEW: Reset flag when doc is gone
                 }
             }, (error) => {
                 console.error("Error with Firestore alert listener: ", error);
+                isDeletingManualAlert = false; // NEW: Reset on error
             });
 
             // NEW: Listener for the Active911 Test Button
             const testActive911DocRef = doc(db, 'alerts', 'test_active911');
+            let isDeletingTestAlert = false; // NEW: Latch flag
+
             onSnapshot(testActive911DocRef, (docSnap) => {
-                if (docSnap.exists()) {
+                if (docSnap.exists() && !isDeletingTestAlert) { // NEW: Check flag
+                    isDeletingTestAlert = true; // NEW: Set flag
                     console.log("Test Active911 Alert received:", docSnap.data());
                     const mockAlertData = {
                         call_type: "TEST CALL",
@@ -721,11 +737,19 @@
                         notes: "All units disregard, this is only a test."
                     };
                     showActive911Alert(mockAlertData);
-                    // Delete the doc so it doesn't re-trigger
-                    setTimeout(() => deleteDoc(testActive911DocRef), 2000);
+                    
+                    // NEW: Delete doc immediately and reset flag on completion
+                    deleteDoc(testActive911DocRef).catch((err) => {
+                        console.error("Error deleting test alert doc:", err);
+                        // *** UPDATED: DO NOT reset latch on permission error ***
+                        // isDeletingTestAlert = false; // Reset on error
+                    });
+                } else if (!docSnap.exists()) {
+                    isDeletingTestAlert = false; // NEW: Reset flag when doc is gone
                 }
             }, (error) => {
                 console.error("Error with Firestore test_active911 listener: ", error);
+                isDeletingTestAlert = false; // NEW: Reset on error
             });
         }
 
