@@ -183,8 +183,8 @@
         let audioEnabled = false;
         const alertAudioElement = document.getElementById('alertSound');
         const toneFileMap = {
-            'default': 'default.mp3', 'alarm': 'alarm.mp3',
-            'chime': 'chime.mp3', 'ascending': 'ascending.mp3'
+            'default': 'sounds/default.mp3', 'alarm': 'sounds/alarm.mp3',
+            'chime': 'sounds/chime.mp3', 'ascending': 'sounds/ascending.mp3'
         };
 
         function playAlertSound(toneName = 'default') {
@@ -192,7 +192,7 @@
               console.warn("Audio not enabled by user yet. Click anywhere to enable.");
               return;
             }
-            const fileName = toneFileMap[toneName] || toneName;
+            const fileName = toneFileMap[toneName] || `sounds/${toneName}`; // Allow custom files from config
             alertAudioElement.src = fileName;
             alertAudioElement.play().catch(error => {
               console.error(`Error playing sound "${fileName}":`, error);
@@ -440,7 +440,10 @@
             overlay.innerHTML = alertHTML;
             overlay.classList.remove('invisible', 'opacity-0');
             overlay.classList.add('opacity-100');
-            playAlertSound('alarm'); // Use the 'alarm' tone for this
+            
+            // NEW: Use the configured alert tone
+            const alertTone = dashboardConfig?.active911_alertTone || 'alarm';
+            playAlertSound(alertTone); // Use the configured tone, fallback to 'alarm'
 
             const duration = (dashboardConfig.active911_alertDurationSeconds || 60) * 1000;
             
@@ -703,6 +706,27 @@
             }, (error) => {
                 console.error("Error with Firestore alert listener: ", error);
             });
+
+            // NEW: Listener for the Active911 Test Button
+            const testActive911DocRef = doc(db, 'alerts', 'test_active911');
+            onSnapshot(testActive911DocRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    console.log("Test Active911 Alert received:", docSnap.data());
+                    const mockAlertData = {
+                        call_type: "TEST CALL",
+                        address: "123 TEST ST",
+                        city: "SPRINGFIELD",
+                        units: ["MEDIC 1", "ENGINE 2", "CHIEF 1"],
+                        description: "This is a test of the Active911 alert system.",
+                        notes: "All units disregard, this is only a test."
+                    };
+                    showActive911Alert(mockAlertData);
+                    // Delete the doc so it doesn't re-trigger
+                    setTimeout(() => deleteDoc(testActive911DocRef), 2000);
+                }
+            }, (error) => {
+                console.error("Error with Firestore test_active911 listener: ", error);
+            });
         }
 
         // --- Listens for slide list changes ---
@@ -766,3 +790,4 @@
 
 </body>
 </html>
+
