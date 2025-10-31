@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Weather Radar - Clark County, OH</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Configure Tailwind to use Inter font -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                },
+            },
+        }
+    </script>
+    <style>
+        /* Simple style for the body to ensure dark mode and full height */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 h-full">
+
+    <!-- Embedded Radar Container -->
+    <div class="w-full h-full">
+        <!-- 
+            This iframe embeds a live radar from RainViewer.
+                - loc=39.91,-83.81,10.5: Centers the map on Springfield (lat, lon) with zoom level 10.5.
+                - layer=radar: Shows the radar layer.
+                - oAnim=1: Enables animation.
+                - oSm=1: Enables smooth animation.
+                - c=3: Uses a common color scheme.
+                - oAP=1: Forces the animation to "Auto Play" on load.
+        -->
+        <iframe
+            class="w-full h-full"
+            src="https://www.rainviewer.com/map.html?loc=39.91,-83.81,11&layer=radar&oAnim=1&oSm=1&c=3&lm=0&oRain=1&oAP=1"
+            title="Live Weather Radar for Clark County, Ohio"
+            frameborder="0"
+            allowfullscreen
+        ></iframe>
+    </div>
+
+</body>
+</html>
+
