@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Address Notes</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Apply the professional font */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* Simple animation for note appearance */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .note-card {
+            animation: fadeIn 0.5s ease-out;
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        }
+        .note-card:hover {
+            transform: translateY(-2px);
+            /* A subtle shadow for dark mode */
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 p-4 md:p-8">
+
+    <header class="p-6 mb-6 bg-white dark:bg-gray-800 rounded-lg shadow-lg">
+        <h1 class="text-3xl sm:text-4xl font-bold text-gray-800 dark:text-gray-100">NOTABLE ADDRESSES</h1>
+        
+        <div class="flex flex-wrap gap-x-6 gap-y-2 mt-4">
+            <div class="flex items-center gap-2">
+                <span class="w-4 h-4 rounded-full bg-red-900/80 border border-red-700"></span>
+                <span class="text-sm text-gray-600 dark:text-gray-300">High Priority</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="w-4 h-4 rounded-full bg-yellow-900/80 border border-yellow-700"></span>
+                <span class="text-sm text-gray-600 dark:text-gray-300">Medium Priority</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="w-4 h-4 rounded-full bg-green-900/80 border border-green-700"></span>
+                <span class="text-sm text-gray-600 dark:text-gray-300">General / Low Priority</span>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <div id="message-area" class="text-center p-6 bg-gray-800 rounded-lg shadow-md hidden">
+            <p id="message-text" class="text-xl text-gray-300"></p>
+        </div>
+
+        <div id="notes-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            </div>
+    </main>
+
+    <footer class="text-center mt-12 text-gray-500">
+    </footer>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- 1. CONFIGURATION & SETUP ---
+        // UPDATED FIREBASE CONFIG (Springfield Township Fire)
+        const firebaseConfig = {
+          apiKey: "AIzaSyCxer4UcW04LXNXZe3WdjTAi6C64P18VJE",
+          authDomain: "spfld-twp-fire.firebaseapp.com",
+          projectId: "spfld-twp-fire",
+          storageBucket: "spfld-twp-fire.firebasestorage.app",
+          messagingSenderId: "625097083856",
+          appId: "1:625097083856:web:2703d29764be68eab6c7d5",
+          measurementId: "G-5JDF2SZVGZ"
+        };
+
+        if (!firebaseConfig) {
+            console.error("Firebase config not found.");
+            document.getElementById('message-text').textContent = "Error: Firebase configuration missing.";
+            document.getElementById('message-area').classList.remove('hidden');
+        }
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        // Get DOM elements
+        const notesList = document.getElementById('notes-list');
+        const messageText = document.getElementById('message-text');
+        const messageArea = document.getElementById('message-area');
+
+        // --- 2. AUTHENTICATION LOGIC ---
+        const initAuth = async () => {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Auth failed:", error);
+                showMessage("Authentication failed. Please refresh.", true);
+            }
+        };
+
+        // Listen for auth state changes
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                console.log("User signed in:", user.uid);
+                setupNoteListener();
+            } else {
+                console.log("User signed out");
+            }
+        });
+
+        // Trigger auth start
+        initAuth();
+
+        // --- 3. DATA LISTENER ---
+        function setupNoteListener() {
+            showMessage("Loading notes...", false);
+            
+            // PATH ALIGNMENT:
+            // This matches the "addressesCollectionRef" from main.js exactly:
+            const notesCollectionRef = collection(db, 'addressNotes');
+            
+            // Removed 'orderBy' to comply with "No Complex Queries" rule
+            // We will sort in memory instead
+            const q = query(notesCollectionRef);
+
+            onSnapshot(q, (querySnapshot) => {
+                notesList.innerHTML = ''; // Clear old notes
+                
+                if (querySnapshot.empty) {
+                    showMessage("No notable addresses found.", false);
+                    return;
+                }
+
+                messageArea.classList.add('hidden'); // Hide message area
+                
+                const notes = [];
+                querySnapshot.forEach((doc) => {
+                    notes.push(doc.data());
+                });
+
+                // --- 4. CLIENT-SIDE SORTING ---
+                // Sort by createdAt descending (newest first)
+                notes.sort((a, b) => {
+                    const dateA = a.createdAt && typeof a.createdAt.toDate === 'function' ? a.createdAt.toDate() : new Date(0);
+                    const dateB = b.createdAt && typeof b.createdAt.toDate === 'function' ? b.createdAt.toDate() : new Date(0);
+                    return dateB - dateA;
+                });
+
+                renderNotes(notes);
+
+            }, (error) => {
+                console.error("Error fetching notes: ", error);
+                // Permission denied often happens if auth fails or path is wrong
+                if (error.code === 'permission-denied') {
+                    showMessage("Permission denied. Check database rules/paths.", true);
+                } else {
+                    showMessage("Error loading notes. Check console.", true);
+                }
+            });
+        }
+
+        // --- 5. UI HELPERS ---
+
+        function showMessage(message, isError = true) {
+            messageText.textContent = message;
+            messageText.classList.toggle('text-red-400', isError);
+            messageText.classList.toggle('text-gray-300', !isError);
+            messageArea.classList.remove('hidden');
+        }
+
+        function renderNotes(notes) {
+            notesList.innerHTML = ''; 
+            notes.forEach(createNoteCard);
+        }
+
+        function createNoteCard(note) {
+            let bgColor = 'bg-gray-800';
+            let borderColor = 'border-gray-700';
+
+            if (note.priority === 'Red') {
+                bgColor = 'bg-red-900/80'; 
+                borderColor = 'border-red-700';
+            } else if (note.priority === 'Yellow') {
+                bgColor = 'bg-yellow-900/80';
+                borderColor = 'border-yellow-700';
+            } else if (note.priority === 'Green' || note.priority === 'General') {
+                bgColor = 'bg-green-900/80'; 
+                borderColor = 'border-green-700';
+            }
+
+            const noteElement = document.createElement('div');
+            // Fixed the CSS class string
+            noteElement.className = `note-card overflow-hidden rounded-lg shadow-xl ${bgColor} border ${borderColor} flex flex-col`;
+            
+            const timestamp = formatTimestamp(note.createdAt);
+            const address = note.address ? note.address.toUpperCase() : 'NO ADDRESS';
+            const noteContent = note.note ? note.note.toUpperCase() : 'NO NOTE';
+
+            noteElement.innerHTML = `
+                <div class="p-5 flex-grow">
+                    <h3 class="font-semibold text-2xl text-white break-words">${escapeHTML(address)}</h3>
+                    <p class="text-gray-300 mt-2 break-words text-lg">${escapeHTML(noteContent)}</p>
+                </div>
+                <div class="p-4 bg-gray-800/50 border-t ${borderColor}">
+                    <p class="text-base text-gray-400 text-right font-medium">${timestamp}</p>
+                </div>
+            `;
+
+            notesList.appendChild(noteElement);
+        }
+
+        function formatTimestamp(timestamp) {
+            if (!timestamp) return 'N/A';
+            try {
+                // Handle both Firestore Timestamp objects and standard JS Date objects if needed
+                const date = typeof timestamp.toDate === 'function' ? timestamp.toDate() : new Date(timestamp);
+                return date.toLocaleString('en-US', {
+                    month: 'numeric',
+                    day: 'numeric',
+                    year: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit'
+                });
+            } catch (e) {
+                console.warn("Could not format timestamp:", timestamp, e);
+                return 'Invalid Date';
+            }
+        }
+
+        function escapeHTML(str) {
+            if (str === null || str === undefined) return '';
+            const div = document.createElement('div');
+            div.appendChild(document.createTextNode(str));
+            return div.innerHTML;
+        }
+
+    </script>
+
+</body>
+</html>
