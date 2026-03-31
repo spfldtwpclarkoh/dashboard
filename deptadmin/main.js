@@ -291,7 +291,7 @@ function setupRealtimeLayout() {
 // --- 3. MODULE LOGIC ---
 
 // --- GOOGLE SHEETS NEWS FEED ---
-const MASTER_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwDFsKgHiCD4dEK6Fcou2tWferXLLv6t23hIv-VF5sFOXKVUrRFVuyODzKiB4zshJX4/exec';
+const MASTER_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzvrU17uS5Oz_jZPZSwyWF1_mp1l5bvl_sk4tvREUhL4Z-AWdiP6QbxMHEDpR-0hO6BEw/exec';
 
 document.addEventListener('DOMContentLoaded', () => {
     // News Feed Form
