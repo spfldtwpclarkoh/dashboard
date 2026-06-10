@@ -4,14 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Last 10 Runs</title>
+    
     <script src="https://cdn.tailwindcss.com"></script>
+    
     <style>
-        /* Simple styling for the Inter font */
         body {
             font-family: 'Inter', sans-serif;
         }
 
-        /* Animation for cards floating up */
         @keyframes floatUp {
             from {
                 opacity: 0;
@@ -24,20 +24,21 @@
         }
 
         .float-up-animation {
-            opacity: 0; /* Start hidden */
+            opacity: 0; 
             animation: floatUp 0.5s ease-out forwards;
         }
     </style>
+    
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, onSnapshot, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // Restored Auth imports to clear permission errors
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // UPDATED CONFIG (Springfield Township Fire)
         const firebaseConfig = {
           apiKey: "AIzaSyCxer4UcW04LXNXZe3WdjTAi6C64P18VJE",
           authDomain: "spfld-twp-fire.firebaseapp.com",
@@ -52,10 +53,8 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
         
-        // UPDATED App ID for Springfield Township
         const appId = 'default-app-id';
 
-        // Elements
         let runsList, runsListContainer, loadingMessage, errorMessage, errorText;
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -65,31 +64,52 @@
             errorMessage = document.getElementById('error-message');
             errorText = document.getElementById('error-text');
             
-            // Initialize Auth
+            // Initialize Auth session first
             initApp();
         });
 
         async function initApp() {
             try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
+                await signInAnonymously(auth);
             } catch (error) {
                 console.error("Auth error:", error);
                 showError("Authentication failed.");
             }
         }
 
+        // Listen for successful auth before attaching the Firestore listener
         onAuthStateChanged(auth, (user) => {
             if (user) {
                 setupRealtimeListener();
             }
         });
 
+        // Helper function to guarantee 24-hour time format
+        function enforce24HourTime(timeStr) {
+            if (!timeStr) return 'N/A';
+            const match = timeStr.trim().match(/^(\d{1,2}):(\d{2})\s?(AM|PM|am|pm)?$/);
+            if (!match) return timeStr; 
+            
+            let [ , hours, minutes, modifier ] = match;
+            if (!modifier) return timeStr; 
+            
+            hours = parseInt(hours, 10);
+            if (modifier.toUpperCase() === 'PM' && hours < 12) hours += 12;
+            if (modifier.toUpperCase() === 'AM' && hours === 12) hours = 0;
+            
+            return `${hours.toString().padStart(2, '0')}:${minutes}`;
+        }
+
         function setupRealtimeListener() {
-            const q = collection(db, 'artifacts', appId, 'public', 'data', 'calls');
+            const callsRef = collection(db, 'artifacts', appId, 'public', 'data', 'calls');
+            
+            // Server-side optimized query mapping directly to indices
+            const q = query(
+                callsRef, 
+                orderBy('year', 'desc'), 
+                orderBy('sequence', 'desc'), 
+                limit(10)
+            );
 
             onSnapshot(q, (snapshot) => {
                 const calls = [];
@@ -102,18 +122,8 @@
                     showError("No calls found in database.");
                     return;
                 }
-
-                // Sort descending (Newest first)
-                // Logic matches runtracker: Year desc, then Sequence desc
-                calls.sort((a, b) => {
-                    if (b.year !== a.year) return b.year - a.year;
-                    return b.sequence - a.sequence;
-                });
-
-                // Take top 10
-                const last10Runs = calls.slice(0, 10);
                 
-                renderRuns(last10Runs);
+                renderRuns(calls);
 
             }, (error) => {
                 console.error("Firestore Error:", error);
@@ -124,68 +134,40 @@
         function renderRuns(data) {
             runsList.innerHTML = '';
 
-            // --- EMS FILTER LIST ---
-            // Add or remove natures here. Case insensitive (we convert to uppercase for checking).
             const emsNatures = [
-                "FALL",
-                "SICK",
-                "RESP",
-                "BACK",
-                "PERUNCON",
-                "ABDOM",
-                "CARDIAC",
-                "BLEEDING",
-                "SEIZURE",
-                "STROKE",
-                "TRAUMA",
-                "DEATH",
-                "EXPOSURE",
-                "ALRMED",
-                "CHESPAIN",
-                "ALRCO",
-                "DIABETIC",
-                "HEADACHE",
-                "OD",
-                "SUICTHRT",
-                "EDP",
-                "ASSAULT",
-                "SUICIDE",
-                "DISORD",
-                "ALLERGIC",
-                "DVA",
-                "WEAPON",
-                "RESPARR"
+                "FALL", "SICK", "RESP", "BACK", "PERUNCON", "ABDOM", 
+                "CARDIAC", "BLEEDING", "SEIZURE", "STROKE", "TRAUMA", 
+                "DEATH", "EXPOSURE", "ALRMED", "CHESPAIN", "ALRCO", 
+                "DIABETIC", "HEADACHE", "OD", "SUICTHRT", "EDP", 
+                "ASSAULT", "SUICIDE", "DISORD", "ALLERGIC", "DVA", 
+                "WEAPON", "RESPARR"
             ];
 
             data.forEach((run, index) => {
                 const card = document.createElement('div');
-                // Card styling - Dark theme, new hover effect, animation
                 card.className = 'bg-slate-800 p-3 rounded-lg shadow border border-slate-700 transition-colors duration-200 hover:bg-slate-700 float-up-animation';
-                // Add animation delay for a staggered effect
                 card.style.animationDelay = `${index * 0.05}s`;
                 
                 const runNumber = run.incidentNumber || 'N/A';
                 
-                // Format Date: YYYY-MM-DD + HH:MM -> MM/DD/YYYY HH:MM
                 let reported = 'N/A';
                 if (run.dispatchDate && run.dispatchTime) {
+                    const formattedTime = enforce24HourTime(run.dispatchTime);
                     try {
                         const [y, m, d] = run.dispatchDate.split('-');
-                        reported = `${m}/${d}/${y} ${run.dispatchTime}`;
+                        reported = `${m}/${d}/${y} ${formattedTime}`;
                     } catch(e) {
-                        reported = `${run.dispatchDate} ${run.dispatchTime}`;
+                        reported = `${run.dispatchDate} ${formattedTime}`;
                     }
                 }
 
                 let nature = run.callNature || 'N/A';
                 const address = run.address || 'N/A';
 
-                // --- CHECK AND REPLACE NATURE ---
                 if (nature !== 'N/A' && emsNatures.includes(nature.toUpperCase())) {
                     nature = "EMS CALL";
                 }
 
-                // --- FONT SIZE INCREASED (Matches previous version) ---
                 card.innerHTML = `
                     <div class="flex flex-col sm:flex-row justify-between sm:items-center mb-1 pb-1 border-b border-slate-700">
                         <div class="text-3xl font-semibold text-slate-400">
@@ -195,16 +177,15 @@
                             ${reported}
                         </div>
                     </div>
-                    <div>
+                    <div class="w-full overflow-hidden">
                         <h3 class="text-4xl font-semibold text-red-500 mb-1">${nature}</h3>
-                        <p class="text-3xl text-slate-300">${address}</p>
+                        <p class="text-3xl text-slate-300 truncate whitespace-nowrap block w-full">${address}</p>
                     </div>
                 `;
                 
                 runsList.appendChild(card);
             });
 
-            // Hide loading message and show the list
             loadingMessage.style.display = 'none';
             errorMessage.style.display = 'none';
             runsListContainer.style.display = 'block';
