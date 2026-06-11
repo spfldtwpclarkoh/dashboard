@@ -303,6 +303,7 @@
     <script>
         // --- CONFIGURATION ---
         const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwkSpIWVHIIrnWpOx2Gj4jWJ7S7H1RAlqIY830O1e0tqfvMdTBwaxVRXrg6ibMBE9L_Bg/exec';
+        const CACHE_KEY = 'aladtec_schedule_cache';
 
         // --- GAP DETECTOR ENGINE ---
         function getLocalDateString(d) {
@@ -325,7 +326,7 @@
                 'Fire/EMS 6', 'Fire/EMS 7', 'Fire/EMS 8', 'EMS/Rider 1', 'EMS/Rider 2'
             ];
 
-            // Reduced from 4 days to 2 days to maintain morning crossover merging, but omit future days
+            // Look ahead 2 days
             for (let i = 0; i < 2; i++) {
                 let targetDate = new Date(today);
                 targetDate.setDate(today.getDate() + i);
@@ -436,8 +437,19 @@
             return [...records, ...finalOpenShifts];
         }
 
-        // --- API & RENDERING LOGIC ---
+        // --- CACHED FETCH LOGIC ---
         async function fetchScheduleData() {
+            // A. Check Local Storage first
+            const cachedData = localStorage.getItem(CACHE_KEY);
+            if (cachedData) {
+                try {
+                    processRawData(JSON.parse(cachedData));
+                } catch (e) {
+                    console.warn("Cache parsing failed", e);
+                }
+            }
+
+            // B. Get fresh data from Google Apps Script
             try {
                 const response = await fetch(WEB_APP_URL);
                 if (!response.ok) throw new Error(`Proxy Error: ${response.status}`);
@@ -446,51 +458,58 @@
                 
                 if (data.error) {
                     console.error("Aladtec API Error via Proxy:", data.error);
-                    showErrorState();
+                    if (!cachedData) showErrorState();
                     return;
                 }
                 
-                const positionTranslations = {
-                    "Pos ID: 1": "Fire/EMS 1",
-                    "Pos ID: 2": "Fire/EMS 2",
-                    "Pos ID: 3": "Fire/EMS 3",
-                    "Pos ID: 45": "Fire/EMS 4",
-                    "Pos ID: 9": "Fire/EMS 5",
-                    "Pos ID: 56": "EMS/Rider 1",
-                    "Pos ID: 5": "Fire/EMS 6",
-                    "Pos ID: 6": "Fire/EMS 7",
-                    "Pos ID: 7": "Fire/EMS 8",
-                    "Pos ID: 57": "EMS/Rider 2",
-                };
-
-                const normalizedRecords = (data.records || []).map(shift => {
-                    if (positionTranslations[shift.position.name]) {
-                        shift.position.name = positionTranslations[shift.position.name];
-                    }
-                    return shift;
-                });
+                // C. Save to cache
+                localStorage.setItem(CACHE_KEY, JSON.stringify(data));
                 
-                let fullSchedule = generateOpenShifts(normalizedRecords);
-
-                // --- ISOLATE CURRENT DATE ---
-                // We keep shifts that are currently active right now, 
-                // OR are starting later today.
-                const now = new Date();
-                const todayEnd = new Date();
-                todayEnd.setHours(23, 59, 59, 999);
-
-                fullSchedule = fullSchedule.filter(shift => {
-                    const sT = new Date(shift.start_time);
-                    const eT = new Date(shift.end_time);
-                    return eT > now && sT <= todayEnd;
-                });
-
-                renderSchedule(fullSchedule);
+                // D. Update display
+                processRawData(data);
 
             } catch (error) {
                 console.error("Failed to fetch schedule from proxy:", error);
-                showErrorState();
+                if (!cachedData) showErrorState();
             }
+        }
+
+        // --- PROCESSING LOGIC ---
+        function processRawData(data) {
+            const positionTranslations = {
+                "Pos ID: 1": "Fire/EMS 1",
+                "Pos ID: 2": "Fire/EMS 2",
+                "Pos ID: 3": "Fire/EMS 3",
+                "Pos ID: 45": "Fire/EMS 4",
+                "Pos ID: 9": "Fire/EMS 5",
+                "Pos ID: 56": "EMS/Rider 1",
+                "Pos ID: 5": "Fire/EMS 6",
+                "Pos ID: 6": "Fire/EMS 7",
+                "Pos ID: 7": "Fire/EMS 8",
+                "Pos ID: 57": "EMS/Rider 2",
+            };
+
+            const normalizedRecords = (data.records || []).map(shift => {
+                if (positionTranslations[shift.position.name]) {
+                    shift.position.name = positionTranslations[shift.position.name];
+                }
+                return shift;
+            });
+            
+            let fullSchedule = generateOpenShifts(normalizedRecords);
+
+            // --- ISOLATE CURRENT DATE ---
+            const now = new Date();
+            const todayEnd = new Date();
+            todayEnd.setHours(23, 59, 59, 999);
+
+            fullSchedule = fullSchedule.filter(shift => {
+                const sT = new Date(shift.start_time);
+                const eT = new Date(shift.end_time);
+                return eT > now && sT <= todayEnd;
+            });
+
+            renderSchedule(fullSchedule);
         }
 
         function showErrorState() {
@@ -576,10 +595,7 @@
                         const isUnknown = shift.member.first_name === "Unknown";
                         const displayName = isUnknown ? "OPEN SHIFT" : `${shift.member.first_name} ${shift.member.last_name}`;
                         
-                        // Apply the 'is-open' class to the entire card instead of just the text row
                         const cardClass = isUnknown ? "shift-card is-open" : "shift-card";
-                        
-                        // Stripping the hidden numerical IDs just for the visual display
                         const shortPosName = shift.position.name.replace(/\s\d+$/, "");
 
                         htmlContent += `
