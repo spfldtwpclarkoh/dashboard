@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Station Schedule Kiosk - 48 Hours Ahead</title>
+    <title>Station Schedule Kiosk - Next Day</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -283,7 +283,7 @@
                 <div id="sta58-schedule" class="schedule-list">
                     <div class="empty-state">
                         <div class="spinner"></div>
-                        <div>Syncing schedule...</div>
+                        <div>Syncing tomorrow's schedule...</div>
                     </div>
                 </div>
             </div>
@@ -293,7 +293,7 @@
                 <div id="sta72-schedule" class="schedule-list">
                     <div class="empty-state">
                         <div class="spinner"></div>
-                        <div>Syncing schedule...</div>
+                        <div>Syncing tomorrow's schedule...</div>
                     </div>
                 </div>
             </div>
@@ -326,8 +326,8 @@
                 'Fire/EMS 6', 'Fire/EMS 7', 'Fire/EMS 8', 'EMS/Rider 1', 'EMS/Rider 2'
             ];
 
-            // Look ahead 3 days
-            for (let i = 0; i < 3; i++) {
+            // Look ahead 2 days
+            for (let i = 0; i < 2; i++) {
                 let targetDate = new Date(today);
                 targetDate.setDate(today.getDate() + i);
                 
@@ -498,19 +498,19 @@
             
             let fullSchedule = generateOpenShifts(normalizedRecords);
 
-            // --- ISOLATE +48 HOURS DATE ---
+            // --- ISOLATE TOMORROW'S DATE ---
             const now = new Date();
-            const targetDateStart = new Date(now);
-            targetDateStart.setDate(targetDateStart.getDate() + 2); // +2 days
-            targetDateStart.setHours(0, 0, 0, 0);
+            const tomorrowStart = new Date(now);
+            tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+            tomorrowStart.setHours(0, 0, 0, 0);
             
-            const targetDateEnd = new Date(targetDateStart);
-            targetDateEnd.setHours(23, 59, 59, 999);
+            const tomorrowEnd = new Date(tomorrowStart);
+            tomorrowEnd.setHours(23, 59, 59, 999);
 
             fullSchedule = fullSchedule.filter(shift => {
                 const sT = new Date(shift.start_time);
                 const eT = new Date(shift.end_time);
-                return eT > targetDateStart && sT <= targetDateEnd;
+                return eT > tomorrowStart && sT <= tomorrowEnd;
             });
 
             renderSchedule(fullSchedule);
@@ -550,7 +550,7 @@
             containers['72'].innerHTML = '';
 
             if (!records || records.length === 0) {
-                const emptyHtml = '<div class="empty-state">No shifts scheduled for this date.</div>';
+                const emptyHtml = '<div class="empty-state">No shifts scheduled for tomorrow.</div>';
                 containers['58'].innerHTML = emptyHtml;
                 containers['72'].innerHTML = emptyHtml;
                 return;
@@ -580,7 +580,7 @@
                 const dates = Object.keys(groupedShifts[sta]);
                 
                 if (dates.length === 0) {
-                    containers[sta].innerHTML = '<div class="empty-state">No shifts scheduled for this date.</div>';
+                    containers[sta].innerHTML = '<div class="empty-state">No shifts scheduled for tomorrow.</div>';
                     return;
                 }
 
