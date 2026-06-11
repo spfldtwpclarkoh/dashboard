@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Station Schedule Kiosk</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-base: #09090b;
+            --surface-color: rgba(24, 24, 27, 0.65);
+            --surface-border: rgba(255, 255, 255, 0.08);
+            --text-main: #f8fafc;
+            --text-muted: #a1a1aa;
+            
+            /* Accents */
+            --brand-blue: #38bdf8;
+            --brand-blue-bg: rgba(56, 189, 248, 0.1);
+            --brand-blue-border: rgba(56, 189, 248, 0.25);
+            
+            --alert-red: #f43f5e;
+            --alert-red-bg: rgba(244, 63, 94, 0.08);
+            --alert-red-border: rgba(244, 63, 94, 0.3);
+        }
+
+        /* Base Reset & Background */
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-base);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            font-family: 'Inter', -apple-system, sans-serif;
+            color: var(--text-main);
+        }
+
+        /* Ambient Background Glows */
+        .ambient-glow-1 {
+            position: absolute;
+            top: -20%; left: -10%;
+            width: 800px; height: 800px;
+            background: radial-gradient(circle, rgba(14,165,233,0.15) 0%, rgba(0,0,0,0) 70%);
+            border-radius: 50%;
+            z-index: 0;
+        }
+
+        .ambient-glow-2 {
+            position: absolute;
+            bottom: -20%; right: -10%;
+            width: 900px; height: 900px;
+            background: radial-gradient(circle, rgba(139,92,246,0.1) 0%, rgba(0,0,0,0) 70%);
+            border-radius: 50%;
+            z-index: 0;
+        }
+
+        /* 1664x1080 Fixed Display Container */
+        .kiosk-wrapper {
+            width: 1664px;
+            height: 1080px;
+            display: flex;
+            flex-direction: column;
+            padding: 40px 50px;
+            box-sizing: border-box;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* 50/50 Grid Layout */
+        .station-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 48px;
+            flex-grow: 1;
+            overflow: hidden;
+        }
+
+        /* Station Panels (Glassmorphism) */
+        .station-panel {
+            background-color: var(--surface-color);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border-radius: 32px;
+            border: 1px solid var(--surface-border);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255,255,255,0.05);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .station-title {
+            font-size: 36px;
+            margin: 0;
+            padding: 32px 0;
+            text-align: center;
+            letter-spacing: 6px;
+            font-weight: 800;
+            background-color: rgba(0, 0, 0, 0.2);
+            border-bottom: 1px solid var(--surface-border);
+            position: relative;
+        }
+
+        /* Accent bar under title */
+        .station-title::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 120px;
+            height: 2px;
+            background: var(--brand-blue);
+            box-shadow: 0 0 10px var(--brand-blue);
+        }
+
+        /* Dynamic Schedule List */
+        .schedule-list {
+            flex-grow: 1;
+            overflow-y: hidden; 
+            display: flex;
+            flex-direction: column;
+            gap: 32px;
+            padding: 32px 40px;
+        }
+
+        /* Date Sub-sections */
+        .date-group {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .date-header {
+            font-size: 20px;
+            color: var(--brand-blue);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .date-header::after {
+            content: '';
+            flex-grow: 1;
+            height: 1px;
+            background: linear-gradient(90deg, var(--brand-blue-border), transparent);
+        }
+
+        /* Shift Cards (Row Replacement) */
+        .shift-card {
+            background-color: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            border-radius: 16px;
+            padding: 20px 24px;
+            display: flex;
+            align-items: center;
+            transition: transform 0.2s ease, background-color 0.2s ease;
+        }
+
+        .shift-time { 
+            color: var(--text-muted); 
+            font-weight: 500;
+            font-size: 24px;
+            font-variant-numeric: tabular-nums;
+            width: 220px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        /* Subtle separator dot */
+        .shift-time::after {
+            content: '';
+            display: block;
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            background-color: var(--surface-border);
+            margin-left: 8px;
+        }
+        
+        .shift-name { 
+            font-size: 28px;
+            font-weight: 600; 
+            color: var(--text-main);
+            flex-grow: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            padding-right: 20px;
+        }
+
+        .shift-position {
+            background-color: var(--brand-blue-bg);
+            border: 1px solid var(--brand-blue-border);
+            color: var(--brand-blue);
+            padding: 10px 20px;
+            border-radius: 12px;
+            text-align: center;
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            white-space: nowrap;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        /* Open Shift Highlighting & Animation */
+        @keyframes pulseAlert {
+            0% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(244, 63, 94, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0); }
+        }
+
+        @keyframes textGlow {
+            0%, 100% { text-shadow: 0 0 8px rgba(244, 63, 94, 0.4); }
+            50% { text-shadow: 0 0 16px rgba(244, 63, 94, 0.8); }
+        }
+
+        .shift-card.is-open {
+            background-color: var(--alert-red-bg);
+            border-color: var(--alert-red-border);
+        }
+
+        .shift-card.is-open .shift-time::after {
+            background-color: var(--alert-red-border);
+        }
+
+        .shift-card.is-open .shift-name {
+            color: var(--alert-red);
+            font-weight: 800;
+            letter-spacing: 1px;
+            animation: textGlow 2s infinite ease-in-out;
+        }
+
+        .shift-card.is-open .shift-position {
+            background-color: rgba(244, 63, 94, 0.15); 
+            border-color: var(--alert-red);
+            color: var(--alert-red);
+            animation: pulseAlert 2s infinite;
+        }
+        
+        .empty-state {
+            color: var(--text-muted);
+            font-size: 24px;
+            padding: 60px 0;
+            text-align: center;
+            font-weight: 400;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+        }
+
+        /* Loading Spinner */
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-radius: 50%;
+            border-top-color: var(--brand-blue);
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="ambient-glow-1"></div>
+    <div class="ambient-glow-2"></div>
+
+    <div class="kiosk-wrapper">
+        <div class="station-container">
+            <div class="station-panel">
+                <h2 class="station-title">STATION 58</h2>
+                <div id="sta58-schedule" class="schedule-list">
+                    <div class="empty-state">
+                        <div class="spinner"></div>
+                        <div>Syncing schedule...</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="station-panel">
+                <h2 class="station-title">STATION 72</h2>
+                <div id="sta72-schedule" class="schedule-list">
+                    <div class="empty-state">
+                        <div class="spinner"></div>
+                        <div>Syncing schedule...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- CONFIGURATION ---
+        const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwkSpIWVHIIrnWpOx2Gj4jWJ7S7H1RAlqIY830O1e0tqfvMdTBwaxVRXrg6ibMBE9L_Bg/exec';
+
+        // --- GAP DETECTOR ENGINE ---
+        function getLocalDateString(d) {
+            return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        }
+
+        function generateOpenShifts(records) {
+            let openShifts = [];
+            
+            const today = new Date();
+            today.setHours(0,0,0,0); 
+            
+            const staffingReqs = {
+                '58': ['Fire/EMS 1', 'Fire/EMS 2', 'Fire/EMS 3'],
+                '72': ['Fire/EMS 1', 'Fire/EMS 2']
+            };
+
+            const validCoverage = [
+                'Fire/EMS 1', 'Fire/EMS 2', 'Fire/EMS 3', 'Fire/EMS 4', 'Fire/EMS 5', 
+                'Fire/EMS 6', 'Fire/EMS 7', 'Fire/EMS 8', 'EMS/Rider 1', 'EMS/Rider 2'
+            ];
+
+            for (let i = 0; i < 4; i++) {
+                let targetDate = new Date(today);
+                targetDate.setDate(today.getDate() + i);
+                
+                let dayStart = new Date(targetDate);
+                let dayEnd = new Date(targetDate);
+                dayEnd.setDate(dayEnd.getDate() + 1);
+
+                for (let sta in staffingReqs) {
+                    let reqPositions = staffingReqs[sta];
+
+                    let dayShifts = records.filter(r => {
+                        let rStart = new Date(r.start_time);
+                        let rEnd = new Date(r.end_time);
+                        let search = `${r.schedule.name || ''}`.toLowerCase();
+                        let overlapsDay = (rStart < dayEnd && rEnd > dayStart);
+                        let isRightStation = search.includes(sta);
+                        return overlapsDay && isRightStation;
+                    });
+
+                    let boundaries = [dayStart.getTime(), dayEnd.getTime()];
+                    dayShifts.forEach(s => {
+                        let sT = new Date(s.start_time).getTime();
+                        let eT = new Date(s.end_time).getTime();
+                        if (sT > dayStart.getTime() && sT < dayEnd.getTime()) boundaries.push(sT);
+                        if (eT > dayStart.getTime() && eT < dayEnd.getTime()) boundaries.push(eT);
+                    });
+
+                    let uniqueBoundaries = [...new Set(boundaries)].sort((a,b) => a-b);
+
+                    for (let b = 0; b < uniqueBoundaries.length - 1; b++) {
+                        let blockStart = uniqueBoundaries[b];
+                        let blockEnd = uniqueBoundaries[b+1];
+
+                        let coveringShifts = dayShifts.filter(s => {
+                            let sT = new Date(s.start_time).getTime();
+                            let eT = new Date(s.end_time).getTime();
+                            return (sT <= blockStart && eT >= blockEnd);
+                        });
+
+                        let missingPositions = [...reqPositions];
+                        let extraCoverCount = 0;
+
+                        coveringShifts.forEach(s => {
+                            if (validCoverage.includes(s.position.name)) {
+                                let idx = missingPositions.indexOf(s.position.name);
+                                if (idx > -1) {
+                                    missingPositions.splice(idx, 1);
+                                } else {
+                                    extraCoverCount++;
+                                }
+                            }
+                        });
+
+                        while (extraCoverCount > 0 && missingPositions.length > 0) {
+                            missingPositions.shift(); 
+                            extraCoverCount--;
+                        }
+
+                        missingPositions.forEach(missingPosName => {
+                            openShifts.push({
+                                start_time: new Date(blockStart).toISOString(),
+                                end_time: new Date(blockEnd).toISOString(),
+                                member: { first_name: "Unknown", last_name: "" },
+                                position: { name: missingPosName },
+                                schedule: { name: sta }
+                            });
+                        });
+                    }
+                }
+            }
+
+            // --- THE MERGER & FILTER ---
+            openShifts.sort((a, b) => {
+                if (a.schedule.name !== b.schedule.name) return a.schedule.name.localeCompare(b.schedule.name);
+                if (a.position.name !== b.position.name) return a.position.name.localeCompare(b.position.name);
+                return new Date(a.start_time) - new Date(b.start_time);
+            });
+
+            let mergedOpenShifts = [];
+            if (openShifts.length > 0) {
+                let current = Object.assign({}, openShifts[0]);
+                for (let i = 1; i < openShifts.length; i++) {
+                    let next = openShifts[i];
+                    
+                    let isSameSchedule = current.schedule.name === next.schedule.name;
+                    let isSamePosition = current.position.name === next.position.name;
+                    let isContiguous = new Date(current.end_time).getTime() === new Date(next.start_time).getTime();
+                    let isSameDay = getLocalDateString(new Date(current.start_time)) === getLocalDateString(new Date(next.start_time));
+
+                    if (isSameSchedule && isSamePosition && isContiguous && isSameDay) {
+                        current.end_time = next.end_time;
+                    } else {
+                        mergedOpenShifts.push(current);
+                        current = Object.assign({}, next);
+                    }
+                }
+                mergedOpenShifts.push(current);
+            }
+
+            const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
+            const currentTime = new Date().getTime();
+            let finalOpenShifts = mergedOpenShifts.filter(shift => {
+                let durationMs = new Date(shift.end_time).getTime() - new Date(shift.start_time).getTime();
+                return durationMs >= TWO_HOURS_MS && new Date(shift.end_time).getTime() > currentTime;
+            });
+            
+            return [...records, ...finalOpenShifts];
+        }
+
+        // --- API & RENDERING LOGIC ---
+        async function fetchScheduleData() {
+            try {
+                const response = await fetch(WEB_APP_URL);
+                if (!response.ok) throw new Error(`Proxy Error: ${response.status}`);
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    console.error("Aladtec API Error via Proxy:", data.error);
+                    showErrorState();
+                    return;
+                }
+                
+                const positionTranslations = {
+                    "Pos ID: 1": "Fire/EMS 1",
+                    "Pos ID: 2": "Fire/EMS 2",
+                    "Pos ID: 3": "Fire/EMS 3",
+                    "Pos ID: 45": "Fire/EMS 4",
+                    "Pos ID: 9": "Fire/EMS 5",
+                    "Pos ID: 56": "EMS/Rider 1",
+                    "Pos ID: 5": "Fire/EMS 6",
+                    "Pos ID: 6": "Fire/EMS 7",
+                    "Pos ID: 7": "Fire/EMS 8",
+                    "Pos ID: 57": "EMS/Rider 2",
+                };
+
+                const normalizedRecords = (data.records || []).map(shift => {
+                    if (positionTranslations[shift.position.name]) {
+                        shift.position.name = positionTranslations[shift.position.name];
+                    }
+                    return shift;
+                });
+                
+                let fullSchedule = generateOpenShifts(normalizedRecords);
+                renderSchedule(fullSchedule);
+
+            } catch (error) {
+                console.error("Failed to fetch schedule from proxy:", error);
+                showErrorState();
+            }
+        }
+
+        function showErrorState() {
+            const errorHtml = `
+                <div class="empty-state" style="color: var(--alert-red);">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                        <line x1="12" y1="9" x2="12" y2="13"></line>
+                        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                    </svg>
+                    Connection Error. Retrying...
+                </div>`;
+            document.getElementById('sta58-schedule').innerHTML = errorHtml;
+            document.getElementById('sta72-schedule').innerHTML = errorHtml;
+        }
+
+        function formatShiftTime(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
+        }
+
+        function formatDateHeader(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+        }
+
+        function renderSchedule(records) {
+            const containers = {
+                '58': document.getElementById('sta58-schedule'),
+                '72': document.getElementById('sta72-schedule')
+            };
+
+            containers['58'].innerHTML = '';
+            containers['72'].innerHTML = '';
+
+            if (!records || records.length === 0) {
+                const emptyHtml = '<div class="empty-state">No shifts scheduled.</div>';
+                containers['58'].innerHTML = emptyHtml;
+                containers['72'].innerHTML = emptyHtml;
+                return;
+            }
+
+            records.sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+
+            const groupedShifts = { '58': {}, '72': {} };
+
+            records.forEach(shift => {
+                const searchString = `${shift.schedule.name} ${shift.position.name}`.toLowerCase();
+                let targetStation = null;
+
+                if (searchString.includes('72')) targetStation = '72';
+                else if (searchString.includes('58')) targetStation = '58';
+                else return;
+
+                const dateHeader = formatDateHeader(shift.start_time);
+                
+                if (!groupedShifts[targetStation][dateHeader]) {
+                    groupedShifts[targetStation][dateHeader] = [];
+                }
+                groupedShifts[targetStation][dateHeader].push(shift);
+            });
+
+            ['58', '72'].forEach(sta => {
+                const dates = Object.keys(groupedShifts[sta]);
+                
+                if (dates.length === 0) {
+                    containers[sta].innerHTML = '<div class="empty-state">No shifts scheduled.</div>';
+                    return;
+                }
+
+                let htmlContent = '';
+                dates.forEach(date => {
+                    htmlContent += `
+                        <div class="date-group">
+                            <div class="date-header">${date}</div>
+                    `;
+
+                    groupedShifts[sta][date].forEach(shift => {
+                        const startFormatted = formatShiftTime(shift.start_time);
+                        const endFormatted = formatShiftTime(shift.end_time);
+                        const fullShiftTime = `${startFormatted} - ${endFormatted}`;
+
+                        const isUnknown = shift.member.first_name === "Unknown";
+                        const displayName = isUnknown ? "OPEN SHIFT" : `${shift.member.first_name} ${shift.member.last_name}`;
+                        
+                        // Apply the 'is-open' class to the entire card instead of just the text row
+                        const cardClass = isUnknown ? "shift-card is-open" : "shift-card";
+                        
+                        // Stripping the hidden numerical IDs just for the visual display
+                        const shortPosName = shift.position.name.replace(/\s\d+$/, "");
+
+                        htmlContent += `
+                            <div class="${cardClass}">
+                                <div class="shift-time">${fullShiftTime}</div>
+                                <div class="shift-name">${displayName}</div>
+                                <div class="shift-position">${shortPosName}</div>
+                            </div>
+                        `;
+                    });
+
+                    htmlContent += `</div>`; 
+                });
+
+                containers[sta].innerHTML = htmlContent;
+            });
+        }
+
+        fetchScheduleData();
+        setInterval(fetchScheduleData, 15 * 60 * 1000);
+    </script>
+</body>
+</html>
