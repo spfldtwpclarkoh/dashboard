@@ -249,14 +249,15 @@
                     ${theme.glow}
                 `;
 
+                // Replaced truncate with break-words and leading-tight for the unit name H2
                 card.innerHTML = `
                     <div class="absolute top-0 left-0 w-2 h-full ${theme.indicator}"></div>
                     
                     <div class="p-6 flex flex-col h-full pl-8"> 
-                        <div class="flex justify-between items-start mb-4">
-                            <div class="flex flex-col overflow-hidden pr-4">
+                        <div class="flex justify-between items-start mb-4 gap-2">
+                            <div class="flex flex-col flex-grow">
                                 <span class="text-sm text-slate-500 font-bold uppercase tracking-widest mb-1">UNIT</span>
-                                <h2 class="text-5xl font-black text-white tracking-tight font-mono leading-none truncate" title="${item.unit || '---'}">${item.unit || '---'}</h2>
+                                <h2 class="text-4xl sm:text-5xl font-black text-white tracking-tight font-mono leading-tight break-words" title="${item.unit || '---'}">${item.unit || '---'}</h2>
                             </div>
                             
                             <div class="flex flex-col items-end flex-shrink-0 mt-1">
