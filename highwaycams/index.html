@@ -2,188 +2,609 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ohio Traffic Cameras</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#05090d">
+    <meta name="description" content="Live highway cameras around Springfield and Clark County, Ohio.">
+    <title>Highway Cameras | Springfield Township</title>
     <style>
+        :root {
+            color-scheme: dark;
+            --background: #030609;
+            --panel: #0a1118;
+            --line: rgba(148, 163, 184, 0.25);
+            --text: #f8fafc;
+            --muted: #a2b1c2;
+            --cyan: #46d8ff;
+            --green: #55e9a6;
+            --red: #fb7185;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
         body {
-            font-family: 'Inter', sans-serif;
+            width: 100%;
+            min-width: 320px;
+            height: 100%;
             margin: 0;
-            padding: 0;
+            overflow: hidden;
+            background: var(--background);
         }
-        
-        /* Loading spinner animation */
-        .spinner {
-            border: 3px solid rgba(255, 255, 255, 0.1);
-            border-left-color: #38bdf8; /* Sky 400 */
+
+        body {
+            color: var(--text);
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .camera-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-template-rows: repeat(2, minmax(0, 1fr));
+            gap: 6px;
+            width: 100%;
+            height: 100vh;
+            height: 100dvh;
+            padding: 6px;
+            background:
+                radial-gradient(circle at 50% 0%, rgba(70, 216, 255, 0.06), transparent 38%),
+                var(--background);
+        }
+
+        .camera-card {
+            position: relative;
+            min-width: 0;
+            min-height: 0;
+            overflow: hidden;
+            border: 1px solid var(--line);
+            border-radius: 11px;
+            background: var(--panel);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.28);
+            isolation: isolate;
+        }
+
+        .camera-card::after {
+            content: "";
+            position: absolute;
+            z-index: 6;
+            inset: 0;
+            border-radius: inherit;
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.025);
+            pointer-events: none;
+        }
+
+        .camera-fill,
+        .camera-image {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            transition: opacity 240ms ease;
+        }
+
+        .camera-fill {
+            z-index: 0;
+            object-fit: cover;
+            filter: blur(24px) brightness(0.42) saturate(0.7);
+            transform: scale(1.1);
+        }
+
+        .camera-image {
+            z-index: 1;
+            object-fit: contain;
+        }
+
+        .camera-card.has-image .camera-fill {
+            opacity: 0.75;
+        }
+
+        .camera-card.has-image .camera-image {
+            opacity: 1;
+        }
+
+        .camera-header,
+        .camera-footer {
+            position: absolute;
+            z-index: 5;
+            right: 0;
+            left: 0;
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            pointer-events: none;
+        }
+
+        .camera-header {
+            top: 0;
+            align-items: flex-start;
+            padding: 13px 14px 38px;
+            background: linear-gradient(180deg, rgba(2, 6, 10, 0.94), rgba(2, 6, 10, 0.48) 58%, transparent);
+        }
+
+        .camera-footer {
+            bottom: 0;
+            align-items: flex-end;
+            padding: 38px 14px 11px;
+            color: rgba(226, 232, 240, 0.76);
+            font-size: 9px;
+            font-weight: 750;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            background: linear-gradient(0deg, rgba(2, 6, 10, 0.92), rgba(2, 6, 10, 0.44) 58%, transparent);
+        }
+
+        .camera-title-wrap {
+            min-width: 0;
+        }
+
+        .camera-route {
+            display: block;
+            margin-bottom: 4px;
+            color: var(--cyan);
+            font-size: 9px;
+            font-weight: 850;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            text-shadow: 0 1px 8px #000;
+        }
+
+        .camera-title {
+            margin: 0;
+            overflow: hidden;
+            color: #fff;
+            font-size: clamp(13px, 1.45vw, 18px);
+            font-weight: 720;
+            letter-spacing: -0.025em;
+            line-height: 1.2;
+            text-overflow: ellipsis;
+            text-shadow: 0 2px 12px #000;
+            white-space: nowrap;
+        }
+
+        .live-badge {
+            display: inline-flex;
+            flex: 0 0 auto;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 8px;
+            border: 1px solid rgba(85, 233, 166, 0.34);
+            border-radius: 999px;
+            color: #b5f8d9;
+            font-size: 9px;
+            font-weight: 850;
+            letter-spacing: 0.12em;
+            line-height: 1;
+            text-transform: uppercase;
+            background: rgba(3, 31, 23, 0.78);
+            box-shadow: 0 0 18px rgba(85, 233, 166, 0.08);
+            backdrop-filter: blur(8px);
+        }
+
+        .live-badge::before,
+        .feed-state::before {
+            content: "";
+            flex: 0 0 auto;
+            width: 5px;
+            height: 5px;
             border-radius: 50%;
-            width: 32px;
-            height: 32px;
-            animation: spin 1s linear infinite;
+            background: var(--green);
+            box-shadow: 0 0 8px var(--green);
         }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+
+        .feed-state {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .camera-card.feed-error .live-badge {
+            border-color: rgba(251, 113, 133, 0.36);
+            color: #fecdd3;
+            background: rgba(45, 8, 16, 0.82);
+        }
+
+        .camera-card.feed-error .live-badge::before,
+        .camera-card.feed-error .feed-state::before {
+            background: var(--red);
+            box-shadow: 0 0 8px rgba(251, 113, 133, 0.7);
+        }
+
+        .loading-shimmer {
+            position: absolute;
+            z-index: 2;
+            inset: 0;
+            background: linear-gradient(120deg, #0a1118 20%, #12202b 36%, #0a1118 52%);
+            background-size: 240% 100%;
+            animation: shimmer 1.6s linear infinite;
+            transition: opacity 200ms ease;
+        }
+
+        .camera-card.has-image .loading-shimmer,
+        .camera-card.feed-error .loading-shimmer {
+            opacity: 0;
+        }
+
+        .feed-message {
+            position: absolute;
+            z-index: 3;
+            top: 50%;
+            left: 50%;
+            display: none;
+            width: min(82%, 330px);
+            padding: 14px 16px;
+            border: 1px solid rgba(251, 113, 133, 0.3);
+            border-radius: 10px;
+            color: #fecdd3;
+            font-size: 12px;
+            line-height: 1.45;
+            text-align: center;
+            background: rgba(39, 9, 16, 0.82);
+            transform: translate(-50%, -50%);
+            backdrop-filter: blur(10px);
+        }
+
+        .camera-card.feed-error:not(.has-image) .feed-message {
+            display: block;
+        }
+
+        .system-message {
+            position: fixed;
+            z-index: 30;
+            top: 12px;
+            left: 50%;
+            max-width: min(90vw, 520px);
+            padding: 9px 13px;
+            border: 1px solid rgba(251, 113, 133, 0.4);
+            border-radius: 999px;
+            color: #ffe4e6;
+            font-size: 11px;
+            font-weight: 700;
+            line-height: 1.3;
+            text-align: center;
+            background: rgba(52, 8, 18, 0.9);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+            transform: translateX(-50%);
+            backdrop-filter: blur(12px);
+        }
+
+        .system-message[hidden] {
+            display: none;
+        }
+
+        .empty-state {
+            grid-column: 1 / -1;
+            grid-row: 1 / -1;
+            display: grid;
+            min-height: 0;
+            border: 1px solid var(--line);
+            border-radius: 11px;
+            place-items: center;
+            background: var(--panel);
+        }
+
+        .empty-state-card {
+            max-width: 430px;
+            padding: 28px;
+            text-align: center;
+        }
+
+        .empty-state-mark {
+            display: grid;
+            width: 48px;
+            height: 48px;
+            margin: 0 auto 16px;
+            border: 1px solid rgba(251, 113, 133, 0.3);
+            border-radius: 14px;
+            color: var(--red);
+            font-size: 22px;
+            place-items: center;
+            background: rgba(251, 113, 133, 0.07);
+        }
+
+        .empty-state h2 {
+            margin: 0 0 8px;
+            color: var(--text);
+            font-size: 20px;
+        }
+
+        .empty-state p {
+            margin: 0;
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.55;
+        }
+
+        @keyframes shimmer {
+            to { background-position: -240% 0; }
+        }
+
+        @media (max-width: 700px) {
+            html,
+            body {
+                height: auto;
+                overflow: auto;
+            }
+
+            .camera-grid {
+                grid-template-columns: 1fr;
+                grid-template-rows: none;
+                grid-auto-rows: minmax(230px, 48vh);
+                height: auto;
+                min-height: 100vh;
+                min-height: 100dvh;
+                gap: 5px;
+                padding: 5px;
+            }
+
+            .camera-title {
+                font-size: 14px;
+            }
+        }
+
+        @media (max-height: 540px) and (min-width: 701px) {
+            .camera-header {
+                padding-top: 9px;
+            }
+
+            .camera-footer {
+                display: none;
+            }
+
+            .camera-route {
+                display: none;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
         }
     </style>
 </head>
-<body class="bg-black text-slate-200 h-screen w-screen overflow-hidden">
-
-    <main id="camera-container" class="grid grid-cols-2 grid-rows-2 h-full w-full gap-1 p-1 bg-black">
-        
-        <div id="loading" class="col-span-2 row-span-2 flex items-center justify-center text-slate-400">
-            <div class="flex flex-col items-center gap-4">
-                <div class="spinner"></div>
-                <p class="text-lg animate-pulse">Initializing camera feeds...</p>
-            </div>
-        </div>
-
-        <div id="error" class="hidden col-span-2 row-span-2 flex items-center justify-center">
-            <div class="text-center text-red-300 bg-red-900/50 border border-red-700 p-6 rounded-lg max-w-lg">
-                <p>Could not fetch camera data. Please check the console for more details.</p>
-            </div>
-        </div>
-
+<body>
+    <main id="camera-grid" class="camera-grid" aria-label="Live highway camera feeds">
+        <article class="camera-card" aria-hidden="true"><div class="loading-shimmer"></div></article>
+        <article class="camera-card" aria-hidden="true"><div class="loading-shimmer"></div></article>
+        <article class="camera-card" aria-hidden="true"><div class="loading-shimmer"></div></article>
+        <article class="camera-card" aria-hidden="true"><div class="loading-shimmer"></div></article>
     </main>
 
+    <div id="system-message" class="system-message" role="status" aria-live="polite" hidden></div>
+
     <script>
-        const cameraContainer = document.getElementById('camera-container');
-        const loadingIndicator = document.getElementById('loading');
-        const errorIndicator = document.getElementById('error');
-        
-        // Configuration
-        const bearerToken = '2bd6a482-97de-478e-812d-50b245075206';
-        
-        // API URL to fetch the 4 specific cameras
-        const apiUrl = `https://publicapi.ohgo.com/api/v1/cameras/00000000000182%2C00000000000371%2C00000000000424%2C00000000001202?page-size=4&page-all=all`;
-        
-        // Update frequency in milliseconds
-        const REFRESH_RATE = 2000; 
+        const CONFIG = {
+            apiUrl: 'https://publicapi.ohgo.com/api/v1/cameras/00000000000182%2C00000000000371%2C00000000000424%2C00000000001202?page-size=4&page-all=all',
+            bearerToken: '2bd6a482-97de-478e-812d-50b245075206',
+            imageRefreshRate: 2000,
+            metadataRetryRate: 15000
+        };
+
+        const cameraGrid = document.getElementById('camera-grid');
+        const systemMessage = document.getElementById('system-message');
 
         let activeCameras = [];
+        let imageRefreshTimer = null;
+        let metadataRetryTimer = null;
+        let isRefreshing = false;
 
-        // 1. Initialize: Fetch camera metadata and build DOM structure ONCE
-        async function initCameras() {
+        function createElement(tag, className, text) {
+            const element = document.createElement(tag);
+            if (className) element.className = className;
+            if (text !== undefined) element.textContent = text;
+            return element;
+        }
+
+        function refreshedImageUrl(baseUrl) {
+            const url = new URL(baseUrl);
+            url.searchParams.set('_refresh', Date.now().toString());
+            return url.toString();
+        }
+
+        function routeName(description) {
+            return description.split(' at ')[0].trim() || 'Traffic camera';
+        }
+
+        function locationName(description) {
+            const location = description.includes(' at ')
+                ? description.slice(description.indexOf(' at ') + 4)
+                : description;
+            return location.replace(/,\s*\d+\s*$/, '').trim();
+        }
+
+        function formattedTime(date) {
+            return new Intl.DateTimeFormat(undefined, {
+                hour: 'numeric',
+                minute: '2-digit',
+                second: '2-digit'
+            }).format(date);
+        }
+
+        function showSystemMessage(message) {
+            systemMessage.textContent = message;
+            systemMessage.hidden = false;
+        }
+
+        function hideSystemMessage() {
+            systemMessage.hidden = true;
+        }
+
+        function setFeedState(card, state, updatedAt) {
+            const badge = card.querySelector('.live-badge');
+            const feedState = card.querySelector('.feed-state');
+            const feedTime = card.querySelector('.feed-time');
+
+            card.classList.toggle('feed-error', state === 'error');
+            badge.textContent = state === 'error' ? 'Retrying' : 'Live';
+            feedState.textContent = state === 'error' ? 'Feed interrupted' : 'Image updated';
+            if (updatedAt) {
+                feedTime.dateTime = updatedAt.toISOString();
+                feedTime.textContent = formattedTime(updatedAt);
+            }
+        }
+
+        function buildCameraCard(camera) {
+            const card = createElement('article', 'camera-card');
+            card.dataset.cameraId = camera.id;
+            card.setAttribute('aria-label', camera.description);
+
+            const fillImage = createElement('img', 'camera-fill');
+            fillImage.alt = '';
+            fillImage.setAttribute('aria-hidden', 'true');
+
+            const mainImage = createElement('img', 'camera-image');
+            mainImage.alt = `Live traffic view: ${camera.description}`;
+
+            const shimmer = createElement('div', 'loading-shimmer');
+            shimmer.setAttribute('aria-hidden', 'true');
+
+            const feedMessage = createElement('div', 'feed-message', 'Camera image temporarily unavailable. Reconnecting automatically.');
+
+            const header = createElement('header', 'camera-header');
+            const titleWrap = createElement('div', 'camera-title-wrap');
+            titleWrap.append(
+                createElement('span', 'camera-route', routeName(camera.description)),
+                createElement('h2', 'camera-title', locationName(camera.description))
+            );
+            header.append(titleWrap, createElement('span', 'live-badge', 'Live'));
+
+            const footer = createElement('footer', 'camera-footer');
+            const feedTime = createElement('time', 'feed-time', '—');
+            footer.append(
+                createElement('span', 'feed-state', 'Loading feed'),
+                feedTime
+            );
+
+            card.append(fillImage, mainImage, shimmer, feedMessage, header, footer);
+            card._feed = {
+                baseUrl: camera.cameraViews[0].largeUrl,
+                fillImage,
+                mainImage
+            };
+
+            return card;
+        }
+
+        function showEmptyState(title, message) {
+            const state = createElement('section', 'empty-state');
+            const content = createElement('div', 'empty-state-card');
+            content.append(
+                createElement('div', 'empty-state-mark', '!'),
+                createElement('h2', '', title),
+                createElement('p', '', message)
+            );
+            state.append(content);
+            cameraGrid.replaceChildren(state);
+        }
+
+        async function loadCameraMetadata() {
+            window.clearTimeout(metadataRetryTimer);
+
             try {
-                errorIndicator.classList.add('hidden');
-                
-                const response = await fetch(apiUrl, {
+                const response = await fetch(CONFIG.apiUrl, {
                     headers: {
-                        'accept': 'application/json',
-                        'Authorization': `Bearer ${bearerToken}`
+                        Accept: 'application/json',
+                        Authorization: `Bearer ${CONFIG.bearerToken}`
                     }
                 });
 
                 if (!response.ok) {
-                    let errorText = `API request failed with status ${response.status}: ${response.statusText}.`;
-                    if (response.status === 401 || response.status === 403) {
-                        errorText += " Token invalid/expired.";
-                    }
-                    throw new Error(errorText);
+                    const message = response.status === 401 || response.status === 403
+                        ? 'The OHGO camera access key needs to be renewed.'
+                        : `The OHGO camera service returned an error (${response.status}).`;
+                    throw new Error(message);
                 }
 
                 const result = await response.json();
-                const cameras = result.results;
+                activeCameras = (result.results || []).filter(camera => camera.cameraViews?.[0]?.largeUrl);
 
-                if (loadingIndicator) loadingIndicator.style.display = 'none';
-
-                if (cameras && cameras.length > 0) {
-                    // Filter for valid cameras only
-                    activeCameras = cameras.filter(camera => 
-                        camera.cameraViews && 
-                        camera.cameraViews.length > 0 && 
-                        camera.cameraViews[0].largeUrl
-                    );
-
-                    if (activeCameras.length === 0) {
-                        showNoDataMessage();
-                        return;
-                    }
-
-                    // Build the DOM elements for each camera
-                    activeCameras.forEach(camera => {
-                        const cameraView = camera.cameraViews[0];
-                        const baseImageUrl = cameraView.largeUrl;
-                        
-                        const cameraCard = document.createElement('div');
-                        // Make each cell relative to contain the absolute positioned overlay and image
-                        cameraCard.className = 'relative bg-slate-900 rounded overflow-hidden border border-slate-800 flex items-center justify-center w-full h-full';
-                        
-                        cameraCard.innerHTML = `
-                            <div class="absolute top-0 left-0 right-0 p-2 md:p-3 bg-gradient-to-b from-black/90 via-black/50 to-transparent z-20 flex justify-between items-start pointer-events-none">
-                                <h2 class="font-semibold text-xs md:text-sm text-slate-100 truncate pr-2 drop-shadow-md" title="${camera.description}">
-                                    ${camera.description}
-                                </h2>
-                                <span class="text-[10px] md:text-xs text-sky-400 font-mono px-1.5 py-0.5 bg-black/60 backdrop-blur-sm rounded border border-sky-900/50">LIVE</span>
-                            </div>
-                            
-                            <div class="spinner absolute z-10"></div>
-                            
-                            <img 
-                                id="img-${camera.id}" 
-                                data-base-url="${baseImageUrl}" 
-                                src="${baseImageUrl}?t=${Date.now()}" 
-                                alt="${camera.description}" 
-                                class="absolute inset-0 w-full h-full object-contain z-0 transition-opacity duration-300 opacity-0"
-                                onerror="this.style.opacity='0'; this.parentElement.querySelector('.spinner').style.display='none';"
-                                onload="this.style.opacity='1'; this.parentElement.querySelector('.spinner').style.display='none';"
-                            >
-                        `;
-                        cameraContainer.appendChild(cameraCard);
-                    });
-
-                    // Start the rapid refresh loop
-                    startLiveFeed();
-
-                } else {
-                    showNoDataMessage();
+                if (!activeCameras.length) {
+                    throw new Error('No active images were returned for these camera locations.');
                 }
 
+                cameraGrid.replaceChildren(...activeCameras.map(buildCameraCard));
+                hideSystemMessage();
+                await refreshAllFeeds();
+                scheduleImageRefresh();
             } catch (error) {
-                console.error('Error initializing cameras:', error);
-                if (loadingIndicator) loadingIndicator.style.display = 'none';
-                errorIndicator.querySelector('p').textContent = error.message;
-                errorIndicator.classList.remove('hidden');
-                errorIndicator.style.display = 'flex';
+                console.error('Unable to initialize highway cameras:', error);
+                showEmptyState('Cameras unavailable', error.message || 'The camera service could not be reached.');
+                showSystemMessage('Camera service offline · reconnecting automatically');
+                metadataRetryTimer = window.setTimeout(loadCameraMetadata, CONFIG.metadataRetryRate);
             }
         }
 
-        function showNoDataMessage() {
-            const msg = document.createElement('div');
-            msg.className = 'col-span-2 row-span-2 flex items-center justify-center text-slate-500 bg-slate-900 rounded';
-            msg.innerHTML = '<p class="text-lg">No active camera feeds found.</p>';
-            cameraContainer.appendChild(msg);
+        function refreshCamera(card) {
+            return new Promise(resolve => {
+                const { baseUrl, fillImage, mainImage } = card._feed;
+                const nextUrl = refreshedImageUrl(baseUrl);
+                const preloader = new Image();
+
+                preloader.onload = () => {
+                    fillImage.src = nextUrl;
+                    mainImage.src = nextUrl;
+                    card.classList.add('has-image');
+                    setFeedState(card, 'live', new Date());
+                    resolve(true);
+                };
+
+                preloader.onerror = () => {
+                    setFeedState(card, 'error');
+                    resolve(false);
+                };
+
+                preloader.src = nextUrl;
+            });
         }
 
-        // 2. The Loop: Update only images
-        function startLiveFeed() {
-            setInterval(() => {
-                activeCameras.forEach(camera => {
-                    const imgElement = document.getElementById(`img-${camera.id}`);
-                    if (imgElement) {
-                        updateCameraImage(imgElement);
-                    }
-                });
-            }, REFRESH_RATE);
+        async function refreshAllFeeds() {
+            if (isRefreshing || !activeCameras.length || !navigator.onLine) return;
+
+            isRefreshing = true;
+            const cards = [...cameraGrid.querySelectorAll('.camera-card[data-camera-id]')];
+            await Promise.all(cards.map(refreshCamera));
+            isRefreshing = false;
         }
 
-        // 3. Smooth Update: Preload image in background
-        function updateCameraImage(imgElement) {
-            const baseUrl = imgElement.getAttribute('data-base-url');
-            const newSrc = `${baseUrl}?t=${Date.now()}`;
-            
-            const tempImage = new Image();
-            tempImage.onload = () => {
-                imgElement.src = newSrc;
-            };
-            tempImage.src = newSrc;
+        function scheduleImageRefresh() {
+            window.clearTimeout(imageRefreshTimer);
+            imageRefreshTimer = window.setTimeout(async () => {
+                await refreshAllFeeds();
+                scheduleImageRefresh();
+            }, CONFIG.imageRefreshRate);
         }
 
-        // Start everything
-        initCameras();
+        window.addEventListener('online', () => {
+            hideSystemMessage();
+            if (activeCameras.length) {
+                refreshAllFeeds();
+                scheduleImageRefresh();
+            } else {
+                loadCameraMetadata();
+            }
+        });
 
+        window.addEventListener('offline', () => {
+            showSystemMessage('Network connection lost · waiting to reconnect');
+        });
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                window.clearTimeout(imageRefreshTimer);
+            } else if (activeCameras.length) {
+                refreshAllFeeds();
+                scheduleImageRefresh();
+            }
+        });
+
+        loadCameraMetadata();
     </script>
 </body>
 </html>
