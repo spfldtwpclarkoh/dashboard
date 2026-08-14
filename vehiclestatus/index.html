@@ -1,88 +1,325 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#030712">
     <title>Unit Status Command Board</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+
     <script src="https://unpkg.com/lucide@latest"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['Inter', 'system-ui', 'sans-serif'],
-                        mono: ['JetBrains Mono', 'monospace'],
-                    },
-                    colors: {
-                        slate: {
-                            850: '#151e2e',
-                            950: '#020617',
-                        }
-                    },
-                    animation: {
-                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-                    }
-                }
-            }
-        }
-    </script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
     <style>
-        body { 
+        :root {
+            color-scheme: dark;
+            font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: #030712;
+            color: #e5e7eb;
+            font-synthesis: none;
+        }
+
+        * { box-sizing: border-box; }
+        html, body { min-height: 100%; }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background:
+                radial-gradient(circle at 14% 0%, rgba(37, 99, 235, 0.11), transparent 30rem),
+                radial-gradient(circle at 90% 100%, rgba(14, 165, 233, 0.08), transparent 34rem),
+                #030712;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
         }
-        .glass-panel {
-            background: rgba(15, 23, 42, 0.6);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
+
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            opacity: 0.22;
+            background-image: radial-gradient(rgba(255,255,255,0.12) 0.7px, transparent 0.7px);
+            background-size: 20px 20px;
+            mask-image: linear-gradient(to bottom, black, transparent 75%);
         }
-        .status-glow-green { box-shadow: 0 0 20px -3px rgba(16, 185, 129, 0.3); }
-        .status-glow-red { box-shadow: 0 0 20px -3px rgba(239, 68, 68, 0.3); }
-        .status-glow-amber { box-shadow: 0 0 20px -3px rgba(245, 158, 11, 0.3); }
-        
-        .line-clamp-3 {
-            display: -webkit-box;
-            -webkit-line-clamp: 3;
-            -webkit-box-orient: vertical;  
+
+        .dashboard {
+            position: relative;
+            width: 100%;
+            min-height: 100vh;
+            padding: clamp(14px, 1.55vw, 28px);
+        }
+
+        .unit-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            grid-auto-rows: minmax(270px, 1fr);
+            gap: clamp(12px, 1.25vw, 22px);
+            min-height: calc(100vh - clamp(28px, 3.1vw, 56px));
+        }
+
+        .unit-card {
+            --accent: #64748b;
+            --accent-rgb: 100, 116, 139;
+            position: relative;
+            display: flex;
+            min-width: 0;
+            min-height: 0;
             overflow: hidden;
+            border: 1px solid rgba(var(--accent-rgb), 0.42);
+            border-radius: 18px;
+            background:
+                linear-gradient(145deg, rgba(var(--accent-rgb), 0.065), transparent 42%),
+                rgba(10, 17, 33, 0.9);
+            box-shadow:
+                0 16px 40px rgba(0, 0, 0, 0.22),
+                0 0 24px rgba(var(--accent-rgb), 0.06);
+        }
+
+        .unit-card::before {
+            content: "";
+            flex: 0 0 7px;
+            background: var(--accent);
+            box-shadow: 0 0 22px rgba(var(--accent-rgb), 0.55);
+        }
+
+        .unit-card.status-oos { --accent: #f43f5e; --accent-rgb: 244, 63, 94; }
+        .unit-card.status-limited { --accent: #f59e0b; --accent-rgb: 245, 158, 11; }
+        .unit-card.status-in-service { --accent: #38bdf8; --accent-rgb: 56, 189, 248; }
+
+        .card-content {
+            display: flex;
+            flex: 1;
+            min-width: 0;
+            flex-direction: column;
+            padding: clamp(18px, 1.65vw, 28px);
+        }
+
+        .card-top {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+            padding-bottom: clamp(14px, 1.25vw, 21px);
+            border-bottom: 1px solid rgba(148, 163, 184, 0.13);
+        }
+
+        .unit-identity { min-width: 0; }
+
+        .eyebrow, .field-label, .update-label {
+            color: #8491a7;
+            font-size: 0.74rem;
+            font-weight: 800;
+            letter-spacing: 0.13em;
+            line-height: 1;
+            text-transform: uppercase;
+        }
+
+        .unit-name {
+            margin: 7px 0 0;
+            color: #f8fafc;
+            font-family: "JetBrains Mono", ui-monospace, monospace;
+            font-size: clamp(1.72rem, 2.25vw, 2.65rem);
+            font-weight: 700;
+            letter-spacing: -0.055em;
+            line-height: 1.02;
+            overflow-wrap: anywhere;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            flex: 0 0 auto;
+            align-items: center;
+            gap: 8px;
+            max-width: 46%;
+            padding: 8px 10px;
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 999px;
+            background: rgba(100, 116, 139, 0.12);
+            color: #cbd5e1;
+            font-size: 0.73rem;
+            font-weight: 800;
+            letter-spacing: 0.065em;
+            line-height: 1.1;
+            text-align: center;
+            text-transform: uppercase;
+        }
+
+        .status-badge::before {
+            content: "";
+            width: 8px;
+            height: 8px;
+            flex: 0 0 8px;
+            border-radius: 50%;
+            background: currentColor;
+            box-shadow: 0 0 11px currentColor;
+        }
+
+        .status-oos .status-badge {
+            border-color: rgba(244, 63, 94, 0.28);
+            background: rgba(244, 63, 94, 0.12);
+            color: #fda4af;
+        }
+
+        .status-limited .status-badge {
+            border-color: rgba(245, 158, 11, 0.28);
+            background: rgba(245, 158, 11, 0.12);
+            color: #fcd34d;
+        }
+
+        .status-in-service .status-badge {
+            border-color: rgba(16, 185, 129, 0.26);
+            background: rgba(16, 185, 129, 0.11);
+            color: #6ee7b7;
+        }
+
+        .card-fields {
+            display: grid;
+            align-content: start;
+            gap: clamp(17px, 1.5vw, 24px);
+            padding-top: clamp(16px, 1.4vw, 23px);
+        }
+
+        .field-heading { display: flex; align-items: center; gap: 8px; }
+        .field-heading svg { width: 17px; height: 17px; color: #718096; stroke-width: 2; }
+
+        .field-value {
+            display: -webkit-box;
+            margin: 8px 0 0;
+            overflow: hidden;
+            color: #dbe4f0;
+            font-size: clamp(1rem, 1.32vw, 1.28rem);
+            font-weight: 600;
+            line-height: 1.35;
+            overflow-wrap: anywhere;
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: 2;
+        }
+
+        .remarks .field-value {
+            color: #aebacc;
+            font-size: clamp(0.96rem, 1.16vw, 1.14rem);
+            font-weight: 500;
+            -webkit-line-clamp: 3;
+        }
+
+        .field-value.is-empty { color: #526075; font-style: italic; font-weight: 500; }
+
+        .card-update {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-top: auto;
+            padding-top: 16px;
+            border-top: 1px solid rgba(148, 163, 184, 0.13);
+        }
+
+        .update-time {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            color: #94a3b8;
+            font-family: "JetBrains Mono", ui-monospace, monospace;
+            font-size: 0.82rem;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .update-time svg { width: 15px; height: 15px; }
+
+        .state-panel {
+            grid-column: 1 / -1;
+            display: flex;
+            min-height: calc(100vh - clamp(28px, 3.1vw, 56px));
+            align-items: center;
+            justify-content: center;
+            padding: 32px;
+            border: 1px dashed #26334a;
+            border-radius: 18px;
+            background: rgba(10, 17, 33, 0.56);
+            color: #8b9ab0;
+            text-align: center;
+        }
+
+        .state-content { max-width: 520px; }
+
+        .state-icon {
+            display: inline-grid;
+            width: 76px;
+            height: 76px;
+            place-items: center;
+            margin-bottom: 20px;
+            border: 1px solid #26334a;
+            border-radius: 50%;
+            background: rgba(30, 41, 59, 0.48);
+            color: #64748b;
+        }
+
+        .state-icon svg { width: 34px; height: 34px; }
+        .state-title { margin: 0; color: #d7e0ec; font-size: clamp(1.35rem, 2vw, 1.8rem); }
+        .state-copy { margin: 10px 0 0; color: #718096; line-height: 1.6; }
+
+        .loader-ring {
+            width: 52px;
+            height: 52px;
+            margin: 0 auto 22px;
+            border: 4px solid rgba(56, 189, 248, 0.18);
+            border-top-color: #38bdf8;
+            border-radius: 50%;
+            animation: spin 0.85s linear infinite;
+        }
+
+        .overflow-note {
+            position: fixed;
+            right: clamp(14px, 1.55vw, 28px);
+            bottom: clamp(14px, 1.55vw, 28px);
+            z-index: 5;
+            padding: 10px 14px;
+            border: 1px solid rgba(148, 163, 184, 0.25);
+            border-radius: 999px;
+            background: rgba(10, 17, 33, 0.94);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+            color: #cbd5e1;
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @media (max-width: 1439px) { .unit-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+        @media (max-width: 899px) { .unit-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+        @media (max-width: 599px) {
+            .unit-grid { grid-template-columns: 1fr; }
+            .card-top { gap: 10px; }
+            .status-badge { max-width: 48%; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                scroll-behavior: auto !important;
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+            }
         }
     </style>
 </head>
-<body class="bg-slate-950 text-slate-200 min-h-screen relative overflow-hidden selection:bg-indigo-500/30 flex flex-col items-center justify-center">
-
-    <div class="fixed inset-0 z-0 pointer-events-none">
-        <div class="absolute top-0 left-1/4 w-96 h-96 bg-indigo-600/10 rounded-full blur-[100px]"></div>
-        <div class="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-600/10 rounded-full blur-[100px]"></div>
-        <div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4wNSkiLz48L3N2Zz4=')] opacity-20"></div>
-    </div>
-
-    <div class="relative z-10 flex flex-col w-full h-full max-w-[1660px] max-h-[1080px] overflow-hidden">
-        
-        <main class="flex-grow p-6 w-full h-full flex flex-col">
-            
-            <div id="unit-grid" class="grid grid-cols-4 grid-rows-3 gap-6 w-full h-full flex-grow">
-                
-                <div class="col-span-4 row-span-3 w-full h-full flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-800 bg-slate-900/20">
-                    <div class="relative">
-                        <div class="w-24 h-24 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin"></div>
-                        <div class="absolute inset-0 flex items-center justify-center">
-                            <i data-lucide="radio" class="text-indigo-400 h-10 w-10 animate-pulse"></i>
-                        </div>
-                    </div>
-                    <p class="mt-8 text-slate-400 font-mono text-xl tracking-wide">ESTABLISHING UPLINK...</p>
+<body>
+    <main class="dashboard" aria-live="polite">
+        <section id="unit-grid" class="unit-grid" aria-label="Units requiring attention">
+            <div class="state-panel">
+                <div class="state-content">
+                    <div class="loader-ring" aria-hidden="true"></div>
+                    <p class="eyebrow">Establishing uplink</p>
                 </div>
-
             </div>
-        </main>
-
-    </div>
+        </section>
+        <div id="overflow-note" class="overflow-note" hidden></div>
+    </main>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
@@ -90,257 +327,216 @@
         import { getFirestore, collection, query, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const firebaseConfig = {
-          apiKey: "AIzaSyCxer4UcW04LXNXZe3WdjTAi6C64P18VJE",
-          authDomain: "spfld-twp-fire.firebaseapp.com",
-          projectId: "spfld-twp-fire",
-          storageBucket: "spfld-twp-fire.firebasestorage.app",
-          messagingSenderId: "625097083856",
-          appId: "1:625097083856:web:2703d29764be68eab6c7d5",
-          measurementId: "G-5JDF2SZVGZ"
+            apiKey: "AIzaSyCxer4UcW04LXNXZe3WdjTAi6C64P18VJE",
+            authDomain: "spfld-twp-fire.firebaseapp.com",
+            projectId: "spfld-twp-fire",
+            storageBucket: "spfld-twp-fire.firebasestorage.app",
+            messagingSenderId: "625097083856",
+            appId: "1:625097083856:web:2703d29764be68eab6c7d5",
+            measurementId: "G-5JDF2SZVGZ"
         };
 
+        const MAX_VISIBLE_UNITS = 12;
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
+        const grid = document.getElementById('unit-grid');
+        const overflowNote = document.getElementById('overflow-note');
 
-        // --- CLOCK FUNCTIONALITY ---
-        function updateClock() {
-            const now = new Date();
-            const timeString = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-            const dateString = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-            
-            const timeEl = document.getElementById('clock-time');
-            const dateEl = document.getElementById('clock-date');
-            
-            if (timeEl) timeEl.textContent = timeString;
-            if (dateEl) dateEl.textContent = dateString;
-        }
-        setInterval(updateClock, 1000);
-        updateClock();
-
-        // --- UTILITIES ---
-        function getStatusTheme(statusText) {
-            const status = (statusText || '').trim();
-            
-            const themes = {
-                success: {
-                    border: 'border-emerald-500/50',
-                    bg: 'bg-emerald-500/5',
-                    badge: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
-                    text: 'text-emerald-400',
-                    indicator: 'bg-emerald-500',
-                    glow: 'status-glow-green',
-                },
-                danger: {
-                    border: 'border-rose-500/50',
-                    bg: 'bg-rose-500/5',
-                    badge: 'bg-rose-500/20 text-rose-300 border-rose-500/30',
-                    text: 'text-rose-400',
-                    indicator: 'bg-rose-500',
-                    glow: 'status-glow-red',
-                },
-                warning: {
-                    border: 'border-amber-500/50',
-                    bg: 'bg-amber-500/5',
-                    badge: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
-                    text: 'text-amber-400',
-                    indicator: 'bg-amber-500',
-                    glow: 'status-glow-amber',
-                },
-                neutral: {
-                    border: 'border-slate-700',
-                    bg: 'bg-slate-800/30',
-                    badge: 'bg-slate-700/50 text-slate-400 border-slate-600',
-                    text: 'text-slate-400',
-                    indicator: 'bg-slate-500',
-                    glow: '',
-                }
-            };
-
-            if (status === 'In Service') return themes.success;
-            if (status === 'OOS') return themes.danger;
-            if (status === 'Limited Service') return themes.warning;
-            return themes.neutral;
+        function normalizeStatus(value) {
+            const status = String(value || '').trim();
+            if (status === 'OOS') return { label: 'OOS', className: 'status-oos', priority: 1 };
+            if (status === 'Limited Service') return { label: 'Limited Service', className: 'status-limited', priority: 2 };
+            if (status === 'In Service') return { label: 'In Service', className: 'status-in-service', priority: 3 };
+            return { label: status || 'Unknown', className: 'status-unknown', priority: 4 };
         }
 
-        function formatRelativeTime(timestamp) {
-            if (!timestamp) return 'Never';
-            let date;
-            
-            try {
-                date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-            } catch (e) { return 'Invalid Date'; }
-
-            const now = new Date();
-            const diffInSeconds = Math.floor((now - date) / 1000);
-
-            if (diffInSeconds < 60) return 'Just now';
-            if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
-            if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
-            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        function timestampToMillis(timestamp) {
+            if (!timestamp) return 0;
+            if (typeof timestamp.toMillis === 'function') return timestamp.toMillis();
+            if (typeof timestamp.toDate === 'function') return timestamp.toDate().getTime();
+            const milliseconds = new Date(timestamp).getTime();
+            return Number.isFinite(milliseconds) ? milliseconds : 0;
         }
 
-        // --- MAIN RENDER LOGIC ---
-        function displayData(unitData) {
-            const container = document.getElementById('unit-grid');
-            container.innerHTML = ''; 
+        function formatRelativeTime(milliseconds) {
+            if (!milliseconds) return 'Never';
+            const seconds = Math.max(0, Math.floor((Date.now() - milliseconds) / 1000));
+            if (seconds < 60) return 'Just now';
+            if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+            if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+            if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
+            return new Date(milliseconds).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        }
 
-            // --- FILTER APPLIED HERE ---
-            unitData = (unitData || []).filter(item => {
-                const status = (item.status || '').trim();
-                const hasRemarks = item.comments && item.comments.trim().length > 0;
-                return status === 'OOS' || status === 'Limited Service' || hasRemarks;
+        function formatAbsoluteTime(milliseconds) {
+            if (!milliseconds) return 'No update time reported';
+            return new Date(milliseconds).toLocaleString('en-US', {
+                month: 'short', day: 'numeric', year: 'numeric',
+                hour: 'numeric', minute: '2-digit'
             });
+        }
 
-            if (unitData.length === 0) {
-                container.innerHTML = `
-                    <div class="col-span-4 row-span-3 w-full h-full flex flex-col items-center justify-center p-20 bg-slate-900/30 rounded-2xl border border-slate-800 text-center">
-                        <div class="bg-slate-800/50 p-8 rounded-full mb-6">
-                            <i data-lucide="inbox" class="h-16 w-16 text-slate-500"></i>
-                        </div>
-                        <h3 class="font-medium text-slate-300 text-3xl">System Standby</h3>
-                        <p class="mt-4 text-slate-500 text-xl">No applicable units reporting in the database.</p>
-                    </div>`;
-                lucide.createIcons();
+        function createIcon(name) {
+            const icon = document.createElement('i');
+            icon.dataset.lucide = name;
+            icon.setAttribute('aria-hidden', 'true');
+            return icon;
+        }
+
+        function createField(iconName, label, value, emptyText, extraClass = '') {
+            const field = document.createElement('div');
+            if (extraClass) field.className = extraClass;
+            const heading = document.createElement('div');
+            heading.className = 'field-heading';
+            heading.append(createIcon(iconName));
+            const labelElement = document.createElement('span');
+            labelElement.className = 'field-label';
+            labelElement.textContent = label;
+            heading.append(labelElement);
+
+            const text = String(value || '').trim();
+            const valueElement = document.createElement('p');
+            valueElement.className = `field-value${text ? '' : ' is-empty'}`;
+            valueElement.textContent = text || emptyText;
+            valueElement.title = text || emptyText;
+            field.append(heading, valueElement);
+            return field;
+        }
+
+        function createUnitCard(item) {
+            const status = normalizeStatus(item.status);
+            const milliseconds = timestampToMillis(item.reported);
+            const card = document.createElement('article');
+            card.className = `unit-card ${status.className}`;
+            card.dataset.updatedAt = String(milliseconds);
+
+            const content = document.createElement('div');
+            content.className = 'card-content';
+            const top = document.createElement('div');
+            top.className = 'card-top';
+            const identity = document.createElement('div');
+            identity.className = 'unit-identity';
+            const eyebrow = document.createElement('span');
+            eyebrow.className = 'eyebrow';
+            eyebrow.textContent = 'Unit';
+            const name = document.createElement('h2');
+            name.className = 'unit-name';
+            name.textContent = String(item.unit || '').trim() || '---';
+            name.title = name.textContent;
+            identity.append(eyebrow, name);
+
+            const badge = document.createElement('span');
+            badge.className = 'status-badge';
+            badge.textContent = status.label;
+            top.append(identity, badge);
+
+            const fields = document.createElement('div');
+            fields.className = 'card-fields';
+            fields.append(
+                createField('map-pin', 'Location', item.location, 'Not reported'),
+                createField('message-square', 'Remarks', item.comments, 'No active remarks.', 'remarks')
+            );
+
+            const update = document.createElement('div');
+            update.className = 'card-update';
+            const updateLabel = document.createElement('span');
+            updateLabel.className = 'update-label';
+            updateLabel.textContent = 'Updated';
+            const updateTime = document.createElement('time');
+            updateTime.className = 'update-time';
+            updateTime.title = formatAbsoluteTime(milliseconds);
+            if (milliseconds) updateTime.dateTime = new Date(milliseconds).toISOString();
+            updateTime.append(createIcon('clock-3'));
+            const relativeTime = document.createElement('span');
+            relativeTime.className = 'relative-time';
+            relativeTime.textContent = formatRelativeTime(milliseconds);
+            updateTime.append(relativeTime);
+            update.append(updateLabel, updateTime);
+
+            content.append(top, fields, update);
+            card.append(content);
+            return card;
+        }
+
+        function renderState(iconName, title, copy) {
+            grid.replaceChildren();
+            overflowNote.hidden = true;
+            const panel = document.createElement('div');
+            panel.className = 'state-panel';
+            const content = document.createElement('div');
+            content.className = 'state-content';
+            const iconWrap = document.createElement('div');
+            iconWrap.className = 'state-icon';
+            iconWrap.append(createIcon(iconName));
+            const heading = document.createElement('h2');
+            heading.className = 'state-title';
+            heading.textContent = title;
+            const paragraph = document.createElement('p');
+            paragraph.className = 'state-copy';
+            paragraph.textContent = copy;
+            content.append(iconWrap, heading, paragraph);
+            panel.append(content);
+            grid.append(panel);
+            lucide.createIcons();
+        }
+
+        function displayData(records) {
+            const applicableUnits = (records || [])
+                .filter(item => {
+                    const status = String(item.status || '').trim();
+                    const hasRemarks = String(item.comments || '').trim().length > 0;
+                    return status === 'OOS' || status === 'Limited Service' || hasRemarks;
+                })
+                .sort((a, b) => {
+                    const priorityDifference = normalizeStatus(a.status).priority - normalizeStatus(b.status).priority;
+                    return priorityDifference || timestampToMillis(b.reported) - timestampToMillis(a.reported);
+                });
+
+            if (applicableUnits.length === 0) {
+                renderState('circle-check-big', 'All clear', 'No out-of-service, limited-service, or remarked units are currently reporting.');
                 return;
             }
 
-            // PRIORITY SORTING LOGIC: OOS -> Limited Service -> In Service -> Unknown -> Time
-            unitData.sort((a, b) => {
-                const statusA = (a.status || '').trim();
-                const statusB = (b.status || '').trim();
-                
-                const getPriority = (status) => {
-                    if (status === 'OOS') return 1;
-                    if (status === 'Limited Service') return 2;
-                    if (status === 'In Service') return 3;
-                    return 4; 
-                };
-
-                const priorityA = getPriority(statusA);
-                const priorityB = getPriority(statusB);
-
-                if (priorityA !== priorityB) {
-                    return priorityA - priorityB;
-                }
-
-                const timeA = a.reported?.toMillis ? a.reported.toMillis() : 0;
-                const timeB = b.reported?.toMillis ? b.reported.toMillis() : 0;
-                return timeB - timeA;
-            });
-
-            // If we have more than 12 units on a strict 4x3 grid, they will overflow. 
-            // We slice at 12 to maintain perfect dashboard formatting without scrollbars.
-            const displayUnits = unitData.slice(0, 12);
-
-            displayUnits.forEach(item => {
-                const theme = getStatusTheme(item.status);
-                const timeString = formatRelativeTime(item.reported);
-                
-                const card = document.createElement('div');
-                
-                // Massive sizes implemented here
-                card.className = `
-                    group relative flex flex-col h-full w-full
-                    bg-slate-900/80 backdrop-blur-md 
-                    border-[1.5px] ${theme.border} 
-                    rounded-2xl overflow-hidden 
-                    transition-all duration-300 hover:bg-slate-900/90
-                    ${theme.glow}
-                `;
-
-                // Replaced truncate with break-words and leading-tight for the unit name H2
-                card.innerHTML = `
-                    <div class="absolute top-0 left-0 w-2 h-full ${theme.indicator}"></div>
-                    
-                    <div class="p-6 flex flex-col h-full pl-8"> 
-                        <div class="flex justify-between items-start mb-4 gap-2">
-                            <div class="flex flex-col flex-grow">
-                                <span class="text-sm text-slate-500 font-bold uppercase tracking-widest mb-1">UNIT</span>
-                                <h2 class="text-4xl sm:text-5xl font-black text-white tracking-tight font-mono leading-tight break-words" title="${item.unit || '---'}">${item.unit || '---'}</h2>
-                            </div>
-                            
-                            <div class="flex flex-col items-end flex-shrink-0 mt-1">
-                                <div class="px-3 py-1.5 rounded-lg text-sm font-bold uppercase tracking-wider border ${theme.badge} flex items-center gap-2">
-                                    <span class="w-2.5 h-2.5 rounded-full ${theme.indicator} ${item.status === 'In Service' ? 'animate-pulse-slow' : ''}"></span>
-                                    ${item.status || 'UNKNOWN'}
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="h-px bg-slate-800 w-full mb-5"></div>
-
-                        <div class="space-y-5 flex-grow">
-                            <div class="group/loc">
-                                <div class="flex items-center gap-2 mb-1.5 text-slate-400">
-                                    <i data-lucide="map-pin" class="w-5 h-5"></i>
-                                    <span class="text-sm font-bold uppercase tracking-wider">Location</span>
-                                </div>
-                                <p class="text-2xl font-medium text-slate-200 leading-tight truncate ${!item.location ? 'italic text-slate-600' : ''}" title="${item.location || 'Not reported'}">
-                                    ${item.location || 'Not reported'}
-                                </p>
-                            </div>
-
-                            <div>
-                                <div class="flex items-center gap-2 mb-1.5 text-slate-400">
-                                    <i data-lucide="message-square" class="w-5 h-5"></i>
-                                    <span class="text-sm font-bold uppercase tracking-wider">Remarks</span>
-                                </div>
-                                <p class="text-xl text-slate-400 leading-snug line-clamp-3 ${!item.comments ? 'italic text-slate-700' : ''}" title="${item.comments || 'No active remarks.'}">
-                                    ${item.comments || 'No active remarks.'}
-                                </p>
-                            </div>
-                        </div>
-
-                        <div class="mt-6 pt-4 border-t border-slate-800 flex items-center justify-between text-sm">
-                            <span class="text-slate-500 font-medium uppercase tracking-wider">Update</span>
-                            <div class="flex items-center gap-2 text-slate-400 font-mono text-base">
-                                <i data-lucide="clock" class="w-4 h-4"></i>
-                                <span>${timeString}</span>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                container.appendChild(card);
-            });
+            const visibleUnits = applicableUnits.slice(0, MAX_VISIBLE_UNITS);
+            grid.replaceChildren(...visibleUnits.map(createUnitCard));
+            const hiddenCount = applicableUnits.length - visibleUnits.length;
+            overflowNote.hidden = hiddenCount === 0;
+            overflowNote.textContent = hiddenCount ? `+${hiddenCount} additional unit${hiddenCount === 1 ? '' : 's'}` : '';
             lucide.createIcons();
+        }
+
+        function refreshRelativeTimes() {
+            document.querySelectorAll('.unit-card').forEach(card => {
+                const milliseconds = Number(card.dataset.updatedAt) || 0;
+                const relativeTime = card.querySelector('.relative-time');
+                if (relativeTime) relativeTime.textContent = formatRelativeTime(milliseconds);
+            });
         }
 
         async function loadData() {
             try {
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                     await signInWithCustomToken(auth, __initial_auth_token);
+                    await signInWithCustomToken(auth, __initial_auth_token);
                 } else {
-                     await signInAnonymously(auth);
+                    await signInAnonymously(auth);
                 }
 
-                const unitStatusCollectionRef = collection(db, 'unitStatus');
-                const q = query(unitStatusCollectionRef);
-
-                onSnapshot(q, (querySnapshot) => {
-                    const allUnits = [];
-                    querySnapshot.forEach((doc) => {
-                        allUnits.push(doc.data());
-                    });
-                    displayData(allUnits);
-                }, (error) => {
-                    console.error("Stream Error", error);
-                    const container = document.getElementById('unit-grid');
-                    if(container) {
-                        container.innerHTML = `
-                            <div class="col-span-4 w-full border border-rose-900 bg-rose-950/30 p-6 rounded-xl text-rose-500 text-center text-xl font-mono">
-                                SIGNAL LOST: ${error.message}
-                            </div>
-                        `;
-                    }
+                const unitStatusQuery = query(collection(db, 'unitStatus'));
+                onSnapshot(unitStatusQuery, snapshot => {
+                    displayData(snapshot.docs.map(document => document.data()));
+                }, error => {
+                    console.error('Unit status stream error', error);
+                    renderState('wifi-off', 'Connection interrupted', 'Live unit data is temporarily unavailable. The board will recover automatically when the connection returns.');
                 });
-
             } catch (error) {
-                console.error("Init Error", error);
+                console.error('Unit status initialization error', error);
+                renderState('triangle-alert', 'Unable to load unit status', 'The board could not connect to the data service. Check the connection and reload the page.');
             }
         }
 
-        document.addEventListener('DOMContentLoaded', loadData);
+        setInterval(refreshRelativeTimes, 30_000);
+        loadData();
     </script>
 </body>
 </html>
