@@ -1,0 +1,79 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAdmin() {
+      return request.auth != null && request.auth.token.admin == true;
+    }
+
+    match /config/{document} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /slides/{document} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /ticker/{document} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /alerts/{document} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Password-free Daily Tasks display; changes remain admin-only.
+    match /dailyTasks/{document} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Password-free maintenance board; changes remain admin-only.
+    match /maintenance/{document} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Password-free notable-address display; changes remain admin-only.
+    match /addressNotes/{document} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Password-free vehicle-status board; changes remain admin-only.
+    match /unitStatus/{document} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // The run tracker has no interactive login. Its display pages can read
+    // publicly, while edits require the app's automatic Firebase session.
+    match /artifacts/{appId}/public/data/calls/{document} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    match /artifacts/{appId}/public/data/callTrackerConfig/{document} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    match /{collectionName}/{document} {
+      allow read, write: if isAdmin() && collectionName in [
+        'dailyTasks',
+        'addressNotes',
+        'unitStatus',
+        'maintenance',
+        'layout_settings'
+      ];
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

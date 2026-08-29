@@ -3,12 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DB Master Admin Console</title>
-    <link rel="icon" type="image/x-icon" href="./assets/256.ico">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-K2CsFwOzHBF+b882AvPfx9YK2m+slrTRbHMuQxWYiEI='; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https: wss:; frame-src https:; object-src 'none'; base-uri 'none'; form-action 'self'">
+    <title>STFD Master Settings</title>
+    <link rel="icon" type="image/png" href="assets/STFD Logo 244x244.png">
+    <link rel="stylesheet" href="app/styles.css">
+    <script src="app/firebase-client.js"></script>
+    <script src="app/safe-content.js"></script>
     <style>
-        body { font-family: 'Inter', sans-serif; }
         .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; }
         .tab-panel { display: none; }
     </style>
@@ -36,10 +37,11 @@
     <div id="admin-wrapper" class="max-w-6xl mx-auto hidden">
         <div class="flex justify-between items-center mb-6 flex-wrap">
             <div>
-                <h1 class="text-4xl font-black text-gray-800">STFD DB Master Admin</h1>
+                <h1 class="text-4xl font-black text-gray-800">STFD Master Settings</h1>
                 <p id="user-email-display" class="text-sm text-gray-600 mt-1"></p>
             </div>
             <div class="flex gap-4 mt-4 md:mt-0">
+                <a href="deptadmin/index.html" class="inline-flex justify-center rounded-lg border border-indigo-200 bg-indigo-50 py-2 px-6 text-base font-medium text-indigo-700 shadow-sm hover:bg-indigo-100">Daily Content Admin</a>
                 <button id="manual-refresh-btn" class="inline-flex justify-center rounded-lg border border-transparent bg-green-600 py-2 px-6 text-base font-medium text-white shadow-sm hover:bg-green-700">Refresh Dashboard</button>
                 <button id="force-reload-btn" class="inline-flex justify-center rounded-lg border border-transparent bg-red-600 py-2 px-6 text-base font-medium text-white shadow-sm hover:bg-red-700">Force Reload All</button>
                 <button id="sign-out-btn" class="inline-flex justify-center rounded-lg border border-gray-300 bg-white py-2 px-6 text-base font-medium text-gray-700 shadow-sm hover:bg-gray-50">Sign Out</button>
@@ -83,7 +85,7 @@
                     <div id="tab-logo" class="tab-panel">
                         <fieldset class="border-b border-gray-200 py-6">
                             <legend class="text-lg font-medium text-gray-900">Logo</legend>
-                            <div class="mt-4"><label class="block text-sm font-medium text-gray-700">ImgBB API Key</label><input type="text" id="imgbb_api_key" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 text-black"></div>
+                            <div class="mt-4"><label class="block text-sm font-medium text-gray-700">ImgBB API Key (used for this upload only)</label><input type="password" id="imgbb_api_key" autocomplete="off" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 text-black"></div>
                             <div class="mt-4"><input type="file" id="logo_upload" accept="image/*" class="mt-1 block w-full text-sm text-gray-500">
                                 <button type="button" id="upload-logo-btn" class="mt-3 inline-flex justify-center rounded-lg border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700">Upload & Save</button>
                                 <span id="upload-feedback" class="ml-4 text-gray-600"></span>
@@ -157,9 +159,12 @@
     </div>
 
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-        import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        const {
+          initializeApp, getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut,
+          getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc,
+          query, orderBy, getDoc, setDoc
+        } = window.STFDFirebase;
+        const { escapeHtml, finiteNumber, safeHttpsUrl, safeIframeMarkup } = window.STFDSafe;
 
         const firebaseConfig = {
           apiKey: "AIzaSyCxer4UcW04LXNXZe3WdjTAi6C64P18VJE",
@@ -173,11 +178,21 @@
         
         let db, auth;
         let slidesCollection, configDocRef, manualAlertDocRef, forceReloadDocRef;
-        let activeTranslations = []; // Hold translations in memory
+        let activeTranslations = [];
+        let slidesUnsubscribe = null;
 
         const loginWrapper = document.getElementById('login-wrapper');
         const adminWrapper = document.getElementById('admin-wrapper');
         const slidesList = document.getElementById('slides-list');
+
+        function showGlobalError(message) {
+            document.getElementById('global-error-message').textContent = message;
+            document.getElementById('global-error-panel').classList.remove('hidden');
+        }
+
+        function clearGlobalError() {
+            document.getElementById('global-error-panel').classList.add('hidden');
+        }
 
         function initializeFirebase() {
             try {
@@ -198,12 +213,13 @@
                 const docSnap = await getDoc(configDocRef);
                 const config = docSnap.exists() ? docSnap.data() : {};
                 
-                ['weather_locationName', 'weather_latitude', 'weather_longitude', 'weather_refreshIntervalMinutes', 'googleSlides_scriptUrl', 'googleSlides_embedUrlBase', 'googleSlides_delayPerSlideSeconds', 'googleSlides_refreshIntervalMinutes', 'newsFeed_secondsPerItem', 'nwsAlertZone', 'nwsAlertRefreshSeconds', 'dispatchAlertDurationSeconds', 'logo_url'].forEach(key => {
+                ['weather_locationName', 'weather_latitude', 'weather_longitude', 'weather_refreshIntervalMinutes', 'googleSlides_scriptUrl', 'googleSlides_embedUrlBase', 'googleSlides_delayPerSlideSeconds', 'googleSlides_refreshIntervalMinutes', 'newsFeed_secondsPerItem', 'nwsAlertZone', 'nwsAlertRefreshSeconds', 'dispatchAlertDurationSeconds'].forEach(key => {
                      const el = document.getElementById(key);
                      if(el) el.value = config[key] || '';
-                });
+                 });
                 
-                if(config.logoUrl) document.getElementById('logo-preview').src = config.logoUrl;
+                const logoUrl = safeHttpsUrl(config.logoUrl);
+                if(logoUrl) document.getElementById('logo-preview').src = logoUrl;
                 
                 // Load translations
                 activeTranslations = config.translations || [];
@@ -211,7 +227,10 @@
 
                 document.getElementById('config-loading-spinner').style.display = 'none';
                 document.getElementById('config-form').classList.remove('hidden');
-            } catch (error) { console.error(error); }
+            } catch (error) {
+                console.error(error);
+                showGlobalError(`Could not load settings: ${error.message}`);
+            }
         }
 
         // Translation UI Logic
@@ -225,7 +244,7 @@
                 const li = document.createElement('li');
                 li.className = 'flex justify-between items-center bg-gray-50 p-4 rounded-lg border border-gray-200 shadow-sm';
                 li.innerHTML = `
-                    <div class="text-lg"><span class="font-bold text-gray-700">"${t.original}"</span> <span class="text-gray-400 mx-2">&rarr;</span> <span class="text-blue-600 font-black">"${t.replacement}"</span></div>
+                    <div class="text-lg"><span class="font-bold text-gray-700">"${escapeHtml(t.original)}"</span> <span class="text-gray-400 mx-2">&rarr;</span> <span class="text-blue-600 font-black">"${escapeHtml(t.replacement)}"</span></div>
                     <button type="button" class="text-red-500 hover:text-white hover:bg-red-500 transition-colors border border-red-500 px-3 py-1 rounded text-sm font-bold del-trans-btn" data-index="${index}">Delete</button>
                 `;
                 list.appendChild(li);
@@ -253,20 +272,34 @@
 
         document.getElementById('config-form').addEventListener('submit', async (e) => {
             e.preventDefault();
+            clearGlobalError();
             const data = {};
             Array.from(e.target.elements).forEach(el => {
-                if(el.id && el.type !== 'submit' && el.type !== 'button' && el.id !== 'trans-original' && el.id !== 'trans-replacement') {
-                    data[el.id] = el.type === 'number' ? parseFloat(el.value) : el.value;
+                if(el.id && el.type !== 'submit' && el.type !== 'button' && el.id !== 'trans-original' && el.id !== 'trans-replacement' && el.id !== 'imgbb_api_key' && el.id !== 'logo_upload') {
+                    data[el.id] = el.type === 'number' ? finiteNumber(el.value, 0) : el.value;
                 }
             });
             
             // Add translations to payload
             data.translations = activeTranslations;
 
-            await setDoc(configDocRef, data, { merge: true });
-            const fb = document.getElementById('save-feedback');
-            fb.classList.remove('hidden'); fb.classList.add('flex');
-            setTimeout(() => fb.classList.add('hidden'), 2000);
+            if (data.googleSlides_scriptUrl && !safeHttpsUrl(data.googleSlides_scriptUrl, ['script.google.com', 'script.googleusercontent.com'])) {
+                showGlobalError('Google Slides Apps Script URL must be an approved Google HTTPS URL.');
+                return;
+            }
+            if (data.googleSlides_embedUrlBase && !safeHttpsUrl(data.googleSlides_embedUrlBase, ['docs.google.com'])) {
+                showGlobalError('Google Slides embed URL must be a docs.google.com HTTPS URL.');
+                return;
+            }
+
+            try {
+                await setDoc(configDocRef, data, { merge: true });
+                const fb = document.getElementById('save-feedback');
+                fb.classList.remove('hidden'); fb.classList.add('flex');
+                setTimeout(() => fb.classList.add('hidden'), 2000);
+            } catch (error) {
+                showGlobalError(`Settings could not be saved: ${error.message}`);
+            }
         });
 
         function renderSlides(docs) {
@@ -278,9 +311,9 @@
                 d.className = 'bg-white p-4 rounded-lg shadow grid grid-cols-1 md:grid-cols-4 gap-4 items-center border border-gray-200';
                 d.dataset.id = doc.id;
                 d.innerHTML = `
-                    <div class="md:col-span-2"><p class="font-bold text-blue-700">${s.type === 'iframe' ? 'Web Slide' : 'Slide'}</p><p class="text-xs text-gray-500 truncate">${s.iframe}</p></div>
-                    <div><input type="number" value="${s.duration/1000}" class="border rounded p-1 w-20 duration">s</div>
-                    <div><input type="number" value="${s.order}" class="border rounded p-1 w-16 order"></div>
+                    <div class="md:col-span-2"><p class="font-bold text-blue-700">${s.type === 'iframe' ? 'Web Slide' : 'Slide'}</p><p class="text-xs text-gray-500 truncate">${escapeHtml(s.iframe)}</p></div>
+                    <div><input type="number" value="${finiteNumber(s.duration, 20000, 5000, 3600000)/1000}" min="5" max="3600" class="border rounded p-1 w-20 duration">s</div>
+                    <div><input type="number" value="${finiteNumber(s.order, 99, 0, 999)}" min="0" max="999" class="border rounded p-1 w-16 order"></div>
                     <div class="flex gap-2"><button class="bg-green-600 text-white px-3 py-1 rounded save hover:bg-green-700">Save</button><button class="bg-red-50 text-red-600 px-3 py-1 rounded delete hover:bg-red-100">Delete</button></div>
                 `;
                 slidesList.appendChild(d);
@@ -288,18 +321,27 @@
         }
 
         function listenToSlides() {
-            onSnapshot(query(slidesCollection, orderBy('order')), (snap) => renderSlides(snap.docs));
+            if (slidesUnsubscribe) slidesUnsubscribe();
+            slidesUnsubscribe = onSnapshot(
+                query(slidesCollection, orderBy('order')),
+                (snap) => renderSlides(snap.docs),
+                (error) => showGlobalError(`Could not load slides: ${error.message}`)
+            );
         }
 
         document.getElementById('add-slide-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const url = document.getElementById('slide-url').value;
+            const url = safeHttpsUrl(document.getElementById('slide-url').value);
             const title = document.getElementById('slide-title').value;
-            const iframe = `<iframe title="${title}" src="${url}" frameborder="0" class="w-full h-full"></iframe>`;
+            const iframe = safeIframeMarkup(url, title);
+            if (!iframe) {
+                showGlobalError('Slide URLs must use HTTPS.');
+                return;
+            }
             await addDoc(slidesCollection, { 
                 type: 'iframe', iframe, 
-                duration: document.getElementById('slide-duration').value * 1000,
-                order: parseInt(document.getElementById('slide-order').value)
+                duration: finiteNumber(document.getElementById('slide-duration').value, 20, 5, 3600) * 1000,
+                order: finiteNumber(document.getElementById('slide-order').value, 10, 0, 999)
             });
             e.target.reset();
         });
@@ -312,8 +354,8 @@
             if(e.target.classList.contains('delete') && confirm('Delete?')) await deleteDoc(ref);
             if(e.target.classList.contains('save')) {
                 await updateDoc(ref, { 
-                    duration: el.querySelector('.duration').value * 1000, 
-                    order: parseInt(el.querySelector('.order').value) 
+                    duration: finiteNumber(el.querySelector('.duration').value, 20, 5, 3600) * 1000,
+                    order: finiteNumber(el.querySelector('.order').value, 10, 0, 999)
                 });
                 e.target.textContent = 'Saved!'; setTimeout(() => e.target.textContent='Save', 1000);
             }
@@ -337,7 +379,11 @@
 
         // Buttons
         document.getElementById('manual-refresh-btn').addEventListener('click', async () => {
-             await setDoc(configDocRef, { lastUpdated: new Date().toISOString() }, { merge: true });
+             try {
+                 await setDoc(configDocRef, { lastUpdated: new Date().toISOString() }, { merge: true });
+             } catch (error) {
+                 showGlobalError(`Dashboard refresh signal failed: ${error.message}`);
+             }
         });
         document.getElementById('test-manual-alert-btn').addEventListener('click', async () => {
              await setDoc(manualAlertDocRef, { title: "TEST", message: "This is a test.", duration: 15000, tone: "chime", timestamp: new Date().toISOString() });
@@ -349,13 +395,19 @@
             const file = document.getElementById('logo_upload').files[0];
             const key = document.getElementById('imgbb_api_key').value;
             if(!file || !key) return;
-            const fd = new FormData(); fd.append('image', file);
-            const res = await fetch(`https://api.imgbb.com/1/upload?key=${key}`, { method:'POST', body:fd });
-            const json = await res.json();
-            if(json.success) {
-                document.getElementById('logo_url').value = json.data.display_url;
-                document.getElementById('logo-preview').src = json.data.display_url;
-                await setDoc(configDocRef, { logoUrl: json.data.display_url }, { merge: true });
+            try {
+                const fd = new FormData(); fd.append('image', file);
+                const res = await fetch(`https://api.imgbb.com/1/upload?key=${encodeURIComponent(key)}`, { method:'POST', body:fd });
+                if (!res.ok) throw new Error(`Upload service returned ${res.status}.`);
+                const json = await res.json();
+                const uploadedUrl = safeHttpsUrl(json?.data?.display_url);
+                if(!json.success || !uploadedUrl) throw new Error('Upload service returned an invalid image URL.');
+                document.getElementById('logo_url').value = uploadedUrl;
+                document.getElementById('logo-preview').src = uploadedUrl;
+                await setDoc(configDocRef, { logoUrl: uploadedUrl }, { merge: true });
+                document.getElementById('imgbb_api_key').value = '';
+            } catch (error) {
+                showGlobalError(`Logo upload failed: ${error.message}`);
             }
         });
 
@@ -369,6 +421,10 @@
                 loadConfig();
                 listenToSlides();
             } else {
+                if (slidesUnsubscribe) {
+                    slidesUnsubscribe();
+                    slidesUnsubscribe = null;
+                }
                 loginWrapper.classList.remove('hidden');
                 adminWrapper.classList.add('hidden');
             }
@@ -377,7 +433,7 @@
         document.getElementById('login-form').addEventListener('submit', (e) => {
             e.preventDefault();
             signInWithEmailAndPassword(auth, document.getElementById('login-email').value, document.getElementById('login-password').value)
-            .catch(e => document.getElementById('login-error').textContent = e.message);
+            .catch(() => document.getElementById('login-error').textContent = 'Sign-in failed. Check your email and password.');
         });
         document.getElementById('sign-out-btn').addEventListener('click', () => signOut(auth));
     </script>

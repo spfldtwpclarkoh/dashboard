@@ -1,0 +1,68 @@
+{
+  "name": "stfd-desktop-app",
+  "version": "2.1.0",
+  "description": "Springfield Township Fire Department kiosk dashboard",
+  "main": "main.js",
+  "scripts": {
+    "start": "npm run bundle && electron .",
+    "bundle": "node scripts/prepare-build.js && tailwindcss -c tailwind.config.js -i ./styles/tailwind.css -o ./app/styles.css --minify && esbuild ./src/firebase-client.js --bundle --format=iife --global-name=STFDFirebaseBundle --outfile=./app/firebase-client.js --minify && esbuild ./src/safe-browser.js --bundle --format=iife --outfile=./app/safe-content.js --minify && esbuild ./src/admin-icons.css --bundle --outdir=./app --loader:.woff2=file --loader:.woff=file --asset-names=fonts/[name] --minify && node scripts/update-csp.js",
+    "check": "node scripts/validate-project.js",
+    "test": "node --test tests/*.test.mjs",
+    "build": "npm run bundle && npm run check && npm test && node scripts/package-windows.js --publish never",
+    "release": "npm run bundle && npm run check && npm test && node scripts/package-windows.js --publish always"
+  },
+  "keywords": ["fire-department", "dashboard", "kiosk"],
+  "author": "Springfield Township Fire Department",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@fortawesome/fontawesome-free": "7.3.1",
+    "electron-log": "5.4.4",
+    "electron-updater": "6.8.9",
+    "firebase": "12.18.0"
+  },
+  "devDependencies": {
+    "electron": "44.0.0",
+    "electron-builder": "26.15.3",
+    "esbuild": "0.28.2",
+    "tailwindcss": "3.4.19"
+  },
+  "overrides": {
+    "js-yaml": "4.3.1"
+  },
+  "build": {
+    "appId": "615.springfieldtownship.dashboard",
+    "productName": "STFD DB",
+    "artifactName": "${productName}-Setup-${version}.${ext}",
+    "asar": true,
+    "directories": { "output": "release" },
+    "files": [
+      "index.html",
+      "admin.html",
+      "main.js",
+      "app/**/*",
+      "assets/**/*",
+      "sounds/**/*",
+      "dayjs.min.js",
+      "papaparse.min.js",
+      "deptadmin/**/*",
+      "!deptadmin/source.js"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "assets/LOGO 3000X3000.png",
+      "publish": [
+        {
+          "provider": "github",
+          "owner": "spfldtwpclarkoh",
+          "repo": "dashboard",
+          "releaseType": "release"
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "deleteAppDataOnUninstall": false
+    }
+  }
+}
