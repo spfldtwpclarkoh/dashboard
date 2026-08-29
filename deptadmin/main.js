@@ -1,23 +1,21 @@
-// --- 1. Firebase Auth and Initialization ---
-import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
-import { 
-    getAuth, 
-    signInWithEmailAndPassword, 
-    onAuthStateChanged, 
-    signOut 
-} from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
-import { 
-    getFirestore, 
-    collection, 
-    doc, 
-    addDoc, 
-    setDoc, 
-    deleteDoc, 
-    onSnapshot, 
-    query, 
+const {
+    initializeApp,
+    getAuth,
+    signInWithEmailAndPassword,
+    onAuthStateChanged,
+    signOut,
+    getFirestore,
+    collection,
+    doc,
+    addDoc,
+    setDoc,
+    deleteDoc,
+    onSnapshot,
+    query,
     orderBy,
-    serverTimestamp 
-} from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+    serverTimestamp
+} = window.STFDFirebase;
+const { escapeHtml, finiteNumber } = window.STFDSafe;
 
 // Your Firebase configuration object (UPDATED TO SPRINGFIELD TWP)
 const firebaseConfig = {
@@ -47,6 +45,14 @@ let maintenanceCollectionRef = null;
 let maintenanceUnsubscribe = null;
 let tickerUnsubscribe = null;
 let layoutUnsubscribe = null; // New listener for layout
+
+function bindOnce(element, eventName, handler, key = eventName) {
+    if (!element) return;
+    const marker = `bound${key.charAt(0).toUpperCase()}${key.slice(1)}`;
+    if (element.dataset[marker]) return;
+    element.dataset[marker] = 'true';
+    element.addEventListener(eventName, handler);
+}
 
 // --- ROUTER LOGIC (Replaces Tabs) ---
 window.Router = {
@@ -91,6 +97,17 @@ window.Router = {
         }
     }
 };
+
+document.querySelectorAll('[data-route]').forEach((element) => {
+    const navigate = (event) => {
+        event.preventDefault();
+        window.Router.navigate(element.dataset.route);
+    };
+    element.addEventListener('click', navigate);
+    element.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') navigate(event);
+    });
+});
 
 // Mobile Menu Toggles
 document.getElementById('mobileMenuBtn').addEventListener('click', () => {
@@ -205,23 +222,33 @@ onAuthStateChanged(auth, (user) => {
         if(maintenanceUnsubscribe) maintenanceUnsubscribe();
         if(tickerUnsubscribe) tickerUnsubscribe();
         if(layoutUnsubscribe) layoutUnsubscribe();
+        tasksUnsubscribe = addressesUnsubscribe = unitStatusUnsubscribe = null;
+        maintenanceUnsubscribe = tickerUnsubscribe = layoutUnsubscribe = null;
     }
 });
 
 // Login Form
-document.getElementById('login-form').addEventListener('submit', (e) => {
+document.getElementById('login-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const email = e.target.email.value;
     const password = e.target.password.value;
     const errBox = document.getElementById('login-error');
+    const loginButton = document.getElementById('login-btn');
     
     errBox.classList.add('hidden');
     
-    signInWithEmailAndPassword(auth, email, password)
-        .catch((error) => {
-            console.error(error);
-            errBox.classList.remove('hidden');
-        });
+    loginButton.disabled = true;
+    loginButton.textContent = 'Signing in...';
+    try {
+        await signInWithEmailAndPassword(auth, email, password);
+    } catch (error) {
+        console.error('Sign-in failed:', error);
+        document.getElementById('login-error-msg').textContent = 'Sign-in failed. Check your email and password.';
+        errBox.classList.remove('hidden');
+    } finally {
+        loginButton.disabled = false;
+        loginButton.textContent = 'Sign In';
+    }
 });
 
 // Sign Out
@@ -232,6 +259,7 @@ document.getElementById('sign-out-button').addEventListener('click', () => {
 // --- NEW: REAL-TIME LAYOUT SYSTEM (Enhanced) ---
 function setupRealtimeLayout() {
     const collectionRef = collection(db, 'layout_settings');
+    if (layoutUnsubscribe) layoutUnsubscribe();
     layoutUnsubscribe = onSnapshot(collectionRef, (snapshot) => {
         snapshot.forEach(docSnap => {
             const containerId = docSnap.id;
@@ -284,7 +312,7 @@ function setupRealtimeLayout() {
                 el.className += ' ' + newClasses.join(' ');
             }
         });
-    });
+    }, (error) => console.error('Layout settings connection failed:', error));
 }
 
 
@@ -293,11 +321,25 @@ function setupRealtimeLayout() {
 // --- GOOGLE SHEETS NEWS FEED ---
 const MASTER_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzvrU17uS5Oz_jZPZSwyWF1_mp1l5bvl_sk4tvREUhL4Z-AWdiP6QbxMHEDpR-0hO6BEw/exec';
 
+async function callNewsApi(action, payload = {}) {
+    if (!auth.currentUser) throw new Error('Your session has expired. Please sign in again.');
+    const idToken = await auth.currentUser.getIdToken();
+    const response = await fetch(MASTER_WEB_APP_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action, ...payload, idToken }),
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+    });
+    if (!response.ok) throw new Error(`News service returned ${response.status}.`);
+    const result = await response.json();
+    if (result.status && result.status !== 'success') throw new Error(result.message || 'News service rejected the request.');
+    return result;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     // News Feed Form
     const newsForm = document.querySelector('#view-news #data-form');
     if(newsForm) {
-        newsForm.addEventListener('submit', (e) => {
+        newsForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const btn = newsForm.querySelector('button[type="submit"]');
             const txt = btn.querySelector('span');
@@ -309,20 +351,17 @@ document.addEventListener('DOMContentLoaded', () => {
             const dataObject = Object.fromEntries(formData.entries());
             dataObject.action = 'addPost';
 
-            fetch(MASTER_WEB_APP_URL, { 
-                method: 'POST', body: JSON.stringify(dataObject),
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-            })
-            .then(res => res.json())
-            .then(data => {
-                if(data.status === 'success') {
-                    showMessage(document.getElementById('message-box-news'), 'Post published!', 'success');
-                    newsForm.reset();
-                    fetchPosts();
-                } else throw new Error(data.message);
-            })
-            .catch(err => showMessage(document.getElementById('message-box-news'), err.message, 'error'))
-            .finally(() => setLoading(false, btn, txt, ldr));
+            try {
+                delete dataObject.action;
+                await callNewsApi('addPost', dataObject);
+                showMessage(document.getElementById('message-box-news'), 'Post published!', 'success');
+                newsForm.reset();
+                await fetchPosts();
+            } catch (error) {
+                showMessage(document.getElementById('message-box-news'), error.message, 'error');
+            } finally {
+                setLoading(false, btn, txt, ldr);
+            }
         });
     }
 
@@ -342,11 +381,7 @@ async function fetchPosts() {
     container.innerHTML = '';
     
     try {
-        const response = await fetch(MASTER_WEB_APP_URL, {
-            method: 'POST', body: JSON.stringify({ action: 'getPosts' }),
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-        });
-        const result = await response.json();
+        const result = await callNewsApi('getPosts');
         
         if (result.status === 'success' && result.data.length > 0) {
             msgArea.classList.add('hidden');
@@ -357,11 +392,11 @@ async function fetchPosts() {
                 card.innerHTML = `
                     <div class="flex justify-between items-start">
                         <div>
-                            <h3 class="text-base font-bold text-gray-900">${post.title}</h3>
+                            <h3 class="text-base font-bold text-gray-900">${escapeHtml(post.title)}</h3>
                             <p class="text-xs text-gray-500 mt-1">
-                                <i class="fa-solid fa-user mr-1"></i> ${post.postedBy} 
+                                <i class="fa-solid fa-user mr-1"></i> ${escapeHtml(post.postedBy)} 
                                 <span class="mx-2">•</span> 
-                                <i class="fa-solid fa-users mr-1"></i> ${post.appliesTo}
+                                <i class="fa-solid fa-users mr-1"></i> ${escapeHtml(post.appliesTo)}
                             </p>
                         </div>
                         <div class="flex space-x-2">
@@ -369,9 +404,9 @@ async function fetchPosts() {
                              <button class="delete-post-btn text-gray-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-lg transition"><i class="fa-solid fa-trash"></i></button>
                         </div>
                     </div>
-                    <p class="text-sm text-gray-700 mt-3 whitespace-pre-wrap">${post.description}</p>
+                    <p class="text-sm text-gray-700 mt-3 whitespace-pre-wrap">${escapeHtml(post.description)}</p>
                     <div class="mt-4 pt-3 border-t border-gray-50 flex flex-wrap gap-4 text-xs text-gray-400">
-                        <span><i class="fa-solid fa-location-dot mr-1"></i> ${post.location}</span>
+                        <span><i class="fa-solid fa-location-dot mr-1"></i> ${escapeHtml(post.location)}</span>
                         <span><i class="fa-regular fa-clock mr-1"></i> Post: ${formatSheetDate(post.postDate)}</span>
                         ${post.removeDate ? `<span><i class="fa-solid fa-calendar-xmark mr-1"></i> Ends: ${formatSheetDate(post.removeDate, false)}</span>` : ''}
                     </div>
@@ -390,7 +425,11 @@ async function fetchPosts() {
             msgArea.textContent = 'No active posts found.';
             msgArea.classList.remove('hidden');
         }
-    } catch(e) { console.error(e); }
+    } catch(error) {
+        console.error(error);
+        msgArea.textContent = `Could not load posts: ${error.message}`;
+        msgArea.classList.remove('hidden');
+    }
     finally { btnIcon.classList.remove('fa-spin'); }
 }
 
@@ -398,11 +437,8 @@ async function handleDeletePost(rowId, btn) {
     if(!confirm('Are you sure you want to delete this post?')) return;
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
     try {
-        await fetch(MASTER_WEB_APP_URL, {
-            method: 'POST', body: JSON.stringify({ action: 'deletePost', rowId }),
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-        });
-        fetchPosts();
+        await callNewsApi('deletePost', { rowId });
+        await fetchPosts();
     } catch(e) { alert(e.message); btn.innerHTML = '<i class="fa-solid fa-trash"></i>'; }
 }
 
@@ -438,10 +474,7 @@ editForm.addEventListener('submit', async (e) => {
     const data = Object.fromEntries(formData.entries());
 
     try {
-        await fetch(MASTER_WEB_APP_URL, {
-            method: 'POST', body: JSON.stringify({ action: 'updatePost', rowId: data.rowId, data }),
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-        });
+        await callNewsApi('updatePost', { rowId: data.rowId, data });
         editModal.style.display = 'none';
         fetchPosts();
     } catch(e) { alert(e.message); }
@@ -455,7 +488,7 @@ function setupTickerLogic() {
     const container = document.getElementById('existing-tickers-container');
     
     // Form Submit
-    form.addEventListener('submit', async (e) => {
+    bindOnce(form, 'submit', async (e) => {
         e.preventDefault();
         const btn = form.querySelector('button');
         btn.disabled = true; btn.textContent = 'Saving...';
@@ -474,10 +507,11 @@ function setupTickerLogic() {
         } finally {
             btn.disabled = false; btn.textContent = 'Add to Ticker';
         }
-    });
+    }, 'tickerSubmit');
 
     // Real-time List
     const q = query(collection(db, 'ticker'), orderBy('startDateTime', 'desc'));
+    if (tickerUnsubscribe) tickerUnsubscribe();
     tickerUnsubscribe = onSnapshot(q, (snapshot) => {
         container.innerHTML = '';
         if(snapshot.empty) {
@@ -491,12 +525,12 @@ function setupTickerLogic() {
             div.className = 'bg-white border border-gray-100 rounded-lg p-4 shadow-sm flex justify-between items-center hover:shadow-md transition';
             div.innerHTML = `
                 <div>
-                    <p class="font-bold text-gray-800 text-sm">${data.message}</p>
+                    <p class="font-bold text-gray-800 text-sm">${escapeHtml(data.message)}</p>
                     <p class="text-xs text-gray-500 mt-1">
                         <i class="fa-regular fa-clock mr-1"></i> ${new Date(data.startDateTime).toLocaleString()} - ${new Date(data.endDateTime).toLocaleString()}
                     </p>
                 </div>
-                <button class="delete-ticker text-gray-300 hover:text-red-600 transition p-2" data-id="${docSnap.id}">
+                <button class="delete-ticker text-gray-300 hover:text-red-600 transition p-2" data-id="${escapeHtml(docSnap.id)}" aria-label="Delete ticker">
                     <i class="fa-solid fa-trash"></i>
                 </button>
             `;
@@ -510,7 +544,7 @@ function setupTickerLogic() {
                 }
             });
         });
-    });
+    }, (error) => showListMessage(document.getElementById('responseMessage-ticker'), `Ticker connection failed: ${error.message}`, 'error'));
 }
 
 
@@ -520,7 +554,7 @@ function setupUnitStatusLogic() {
     const form = document.querySelector('#view-units #update-form');
     
     // Update
-    form.addEventListener('submit', async (e) => {
+    bindOnce(form, 'submit', async (e) => {
         e.preventDefault();
         const btn = form.querySelector('button');
         setLoading(true, btn, btn.querySelector('.button-text'), btn.querySelector('.button-spinner'));
@@ -539,9 +573,10 @@ function setupUnitStatusLogic() {
             form.reset();
         } catch(e) { showMessage(document.getElementById('message-box-unit'), e.message, 'error'); }
         finally { setLoading(false, btn, btn.querySelector('.button-text'), btn.querySelector('.button-spinner')); }
-    });
+    }, 'unitSubmit');
 
     // Listen
+    if (unitStatusUnsubscribe) unitStatusUnsubscribe();
     unitStatusUnsubscribe = onSnapshot(query(unitStatusCollectionRef), (snap) => {
         const container = document.getElementById('unit-status-container');
         container.innerHTML = '';
@@ -565,17 +600,17 @@ function setupUnitStatusLogic() {
                 <div class="p-4 border border-gray-200 rounded-lg bg-white shadow-sm flex flex-col justify-between">
                     <div>
                         <div class="flex justify-between items-start mb-2">
-                            <h3 class="font-bold text-gray-900">${u.unit}</h3>
-                            <span class="text-xs font-bold px-2 py-1 rounded-full ${color}">${u.status}</span>
+                            <h3 class="font-bold text-gray-900">${escapeHtml(u.unit)}</h3>
+                            <span class="text-xs font-bold px-2 py-1 rounded-full ${color}">${escapeHtml(u.status)}</span>
                         </div>
-                        <p class="text-sm text-gray-600"><span class="font-semibold">Loc:</span> ${u.location}</p>
-                        <p class="text-sm text-gray-500 italic mt-1">"${u.comments || '-'}"</p>
+                        <p class="text-sm text-gray-600"><span class="font-semibold">Loc:</span> ${escapeHtml(u.location)}</p>
+                        <p class="text-sm text-gray-500 italic mt-1">"${escapeHtml(u.comments || '-')}"</p>
                     </div>
                     <p class="text-xs text-gray-400 mt-3 pt-2 border-t text-right">Updated: ${formatFirestoreTimestamp(u.reported)}</p>
                 </div>
             `;
         });
-    });
+    }, (error) => showListMessage(document.getElementById('status-message-area'), `Unit connection failed: ${error.message}`, 'error'));
 }
 
 // --- TASKS LOGIC ---
@@ -584,7 +619,7 @@ function setupTaskLogic() {
     const form = document.querySelector('#view-tasks #task-form');
     
     // Add
-    form.addEventListener('submit', async (e) => {
+    bindOnce(form, 'submit', async (e) => {
         e.preventDefault();
         const btn = form.querySelector('button');
         setLoading(true, btn, btn.querySelector('.button-text'), btn.querySelector('.button-spinner'));
@@ -604,9 +639,10 @@ function setupTaskLogic() {
             showMessage(document.getElementById('message-box-task'), 'Task added.', 'success');
         } catch(e) { showMessage(document.getElementById('message-box-task'), e.message, 'error'); }
         finally { setLoading(false, btn, btn.querySelector('.button-text'), btn.querySelector('.button-spinner')); }
-    });
+    }, 'taskSubmit');
 
     // Listen
+    if (tasksUnsubscribe) tasksUnsubscribe();
     tasksUnsubscribe = onSnapshot(query(tasksCollectionRef), (snap) => {
         const container = document.getElementById('existing-tasks-container');
         container.innerHTML = '';
@@ -616,24 +652,26 @@ function setupTaskLogic() {
             div.className = 'p-3 border border-gray-200 rounded-lg shadow-sm bg-white hover:bg-gray-50 transition';
             div.innerHTML = `
                 <div class="flex justify-between items-start">
-                    <h3 class="font-bold text-gray-800 text-sm">${t.task}</h3>
+                    <h3 class="font-bold text-gray-800 text-sm">${escapeHtml(t.task)}</h3>
                     <div class="flex space-x-1">
                         <button class="edit-btn text-blue-500 hover:bg-blue-100 p-1 rounded"><i class="fa-solid fa-pen"></i></button>
                         <button class="del-btn text-gray-400 hover:text-red-600 hover:bg-red-50 p-1 rounded"><i class="fa-solid fa-trash"></i></button>
                     </div>
                 </div>
                 <div class="text-xs text-gray-500 mt-2 flex justify-between">
-                    <span><i class="fa-solid fa-user mr-1"></i> ${t.assignee}</span>
-                    <span class="font-medium text-indigo-600">${Array.isArray(t.day) ? t.day.join(', ') : t.day}</span>
+                    <span><i class="fa-solid fa-user mr-1"></i> ${escapeHtml(t.assignee)}</span>
+                    <span class="font-medium text-indigo-600">${escapeHtml(Array.isArray(t.day) ? t.day.join(', ') : t.day)}</span>
                 </div>
             `;
             
-            div.querySelector('.del-btn').addEventListener('click', () => deleteDoc(doc(db, 'dailyTasks', d.id)));
+            div.querySelector('.del-btn').addEventListener('click', () => {
+                if (confirm('Delete this task?')) deleteDoc(doc(db, 'dailyTasks', d.id));
+            });
             div.querySelector('.edit-btn').addEventListener('click', () => showEditTaskModal(d.id, t));
             
             container.appendChild(div);
         });
-    });
+    }, (error) => showMessage(document.getElementById('message-box-task'), `Task connection failed: ${error.message}`, 'error'));
 }
 
 // Task Edit Modal
@@ -676,7 +714,7 @@ function setupAddressLogic() {
     addressesCollectionRef = collection(db, 'addressNotes');
     const form = document.querySelector('#view-addresses #contact-form');
 
-    form.addEventListener('submit', async (e) => {
+    bindOnce(form, 'submit', async (e) => {
         e.preventDefault();
         const btn = form.querySelector('button');
         setLoading(true, btn, btn.querySelector('.button-text'), btn.querySelector('.button-spinner'));
@@ -692,8 +730,9 @@ function setupAddressLogic() {
             showMessage(document.getElementById('status-message-address'), 'Address added.', 'success');
         } catch(e) { showMessage(document.getElementById('status-message-address'), e.message, 'error'); }
         finally { setLoading(false, btn, btn.querySelector('.button-text'), btn.querySelector('.button-spinner')); }
-    });
+    }, 'addressSubmit');
 
+    if (addressesUnsubscribe) addressesUnsubscribe();
     addressesUnsubscribe = onSnapshot(query(addressesCollectionRef), (snap) => {
         const container = document.getElementById('existing-addresses-container');
         container.innerHTML = '';
@@ -707,20 +746,20 @@ function setupAddressLogic() {
             div.className = 'p-4 border border-gray-200 rounded-lg shadow-sm bg-white hover:shadow-md transition';
             div.innerHTML = `
                 <div class="flex justify-between items-start">
-                    <h3 class="font-bold text-gray-900">${a.address}</h3>
+                    <h3 class="font-bold text-gray-900">${escapeHtml(a.address)}</h3>
                     <div class="flex space-x-2">
-                        <span class="text-xs px-2 py-1 rounded ${color} font-bold mr-2">${a.priority}</span>
+                        <span class="text-xs px-2 py-1 rounded ${color} font-bold mr-2">${escapeHtml(a.priority)}</span>
                         <button class="edit-addr text-blue-500 hover:text-blue-700"><i class="fa-solid fa-pen"></i></button>
                         <button class="del-addr text-gray-400 hover:text-red-600"><i class="fa-solid fa-trash"></i></button>
                     </div>
                 </div>
-                <p class="text-sm text-gray-600 mt-2">${a.note}</p>
+                <p class="text-sm text-gray-600 mt-2">${escapeHtml(a.note)}</p>
             `;
             div.querySelector('.del-addr').onclick = () => { if(confirm('Delete?')) deleteDoc(doc(db, 'addressNotes', d.id)); };
             div.querySelector('.edit-addr').onclick = () => showEditAddrModal(d.id, a);
             container.appendChild(div);
         });
-    });
+    }, (error) => showMessage(document.getElementById('status-message-address'), `Address connection failed: ${error.message}`, 'error'));
 }
 
 // Edit Address Modal
@@ -755,7 +794,7 @@ function setupMaintenanceLogic() {
     maintenanceCollectionRef = collection(db, 'maintenance');
     const form = document.querySelector('#view-maintenance #maintenance-form');
 
-    form.addEventListener('submit', async (e) => {
+    bindOnce(form, 'submit', async (e) => {
         e.preventDefault();
         const btn = form.querySelector('button');
         setLoading(true, btn, btn.querySelector('.button-text'), btn.querySelector('.button-spinner'));
@@ -772,8 +811,9 @@ function setupMaintenanceLogic() {
             showMessage(document.getElementById('message-box-maintenance'), 'Entry logged.', 'success');
         } catch(e) { showMessage(document.getElementById('message-box-maintenance'), e.message, 'error'); }
         finally { setLoading(false, btn, btn.querySelector('.button-text'), btn.querySelector('.button-spinner')); }
-    });
+    }, 'maintenanceSubmit');
 
+    if (maintenanceUnsubscribe) maintenanceUnsubscribe();
     maintenanceUnsubscribe = onSnapshot(query(maintenanceCollectionRef), (snap) => {
         const container = document.getElementById('existing-maintenance-container');
         container.innerHTML = '';
@@ -787,23 +827,23 @@ function setupMaintenanceLogic() {
             div.className = 'p-3 border border-gray-200 rounded-lg shadow-sm bg-white hover:bg-gray-50 transition';
             div.innerHTML = `
                 <div class="flex justify-between items-start">
-                    <h3 class="font-bold text-gray-800 text-sm">${m.service}</h3>
+                    <h3 class="font-bold text-gray-800 text-sm">${escapeHtml(m.service)}</h3>
                     <div class="flex space-x-1">
                         <button class="edit-maint text-blue-500 hover:bg-blue-100 p-1 rounded"><i class="fa-solid fa-pen"></i></button>
                         <button class="del-maint text-gray-400 hover:text-red-600 hover:bg-red-50 p-1 rounded"><i class="fa-solid fa-trash"></i></button>
                     </div>
                 </div>
                 <div class="mt-2 text-xs text-gray-500 grid grid-cols-2 gap-2">
-                    <span><i class="fa-solid fa-store mr-1"></i> ${m.vendor}</span>
-                    <span><i class="fa-solid fa-location-dot mr-1"></i> ${m.location}</span>
+                    <span><i class="fa-solid fa-store mr-1"></i> ${escapeHtml(m.vendor)}</span>
+                    <span><i class="fa-solid fa-location-dot mr-1"></i> ${escapeHtml(m.location)}</span>
                 </div>
-                <p class="text-xs text-gray-400 mt-2 border-t pt-1"><i class="fa-regular fa-calendar mr-1"></i> ${m.date}</p>
+                <p class="text-xs text-gray-400 mt-2 border-t pt-1"><i class="fa-regular fa-calendar mr-1"></i> ${escapeHtml(m.date)}</p>
             `;
             div.querySelector('.del-maint').onclick = () => { if(confirm('Delete?')) deleteDoc(doc(db, 'maintenance', m.id)); };
             div.querySelector('.edit-maint').onclick = () => showEditMaintModal(m.id, m);
             container.appendChild(div);
         });
-    });
+    }, (error) => showMessage(document.getElementById('message-box-maintenance'), `Maintenance connection failed: ${error.message}`, 'error'));
 }
 
 // Edit Maintenance Modal
@@ -839,7 +879,7 @@ function setupForceReloadLogic() {
     const reloadBtn = document.getElementById('force-reload-btn');
     if(!reloadBtn) return;
 
-    reloadBtn.addEventListener('click', async () => {
+    bindOnce(reloadBtn, 'click', async () => {
         if(!confirm('This will force ALL dashboards to reload, clearing their cache. This can be disruptive. Are you sure?')) return;
 
         const originalContent = reloadBtn.innerHTML;
@@ -867,7 +907,7 @@ function setupForceReloadLogic() {
             reloadBtn.disabled = false;
             reloadBtn.innerHTML = originalContent;
         }
-    });
+    }, 'forceReload');
 }
 
 // --- UTILS ---
