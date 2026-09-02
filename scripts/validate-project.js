@@ -48,6 +48,8 @@ for (const requiredRule of [
 ]) {
   if (!firestoreRules.includes(requiredRule)) failures.push(`Firestore rules are missing: ${requiredRule}`);
 }
+const gitignore = fs.readFileSync(path.join(root, '.gitignore'), 'utf8');
+if (/^app\/$/m.test(gitignore)) failures.push('The generated app folder must be committed for GitHub Pages.');
 if (pkg.scripts.build.includes('--publish always')) failures.push('The ordinary build command must not publish.');
 if (!pkg.scripts.release.includes('--publish always')) failures.push('The release command must publish explicitly.');
 if (!pkg.scripts.build.includes('npm test')) failures.push('The ordinary build command must run the test suite.');

@@ -16,7 +16,7 @@ Install dependencies with `npm install`, then use:
 - `npm run build` — create a local Windows installer without publishing.
 - `npm run release` — test, build, and publish using the configured GitHub provider and token.
 
-Generated browser assets are written to `app/`. Installers are written to `release/`. Neither directory belongs in source control. Packaging uses a temporary non-synced directory first, which avoids OneDrive locking Electron's intermediate files.
+Generated browser assets are written to `app/` and must be committed because GitHub Pages serves the repository directly. Installers are written to `release/` and do not belong in source control. Packaging uses a temporary non-synced directory first, which avoids OneDrive locking Electron's intermediate files.
 
 ## Kiosk controls
 
