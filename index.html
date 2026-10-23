@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-67pPjt2C2TyC49X53zG69iqTDp9eMgcG0k3zP6F5x1Y='; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; media-src 'self'; connect-src 'self' https: wss:; frame-src https:; object-src 'none'; base-uri 'none'; form-action 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-oAM3zkCAQAe2jZZIkNTTcsuAt8j3WE5WP3LkCmHhDCM='; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; media-src 'self'; connect-src 'self' https: wss:; frame-src https:; object-src 'none'; base-uri 'none'; form-action 'self'">
   <title>STFD Dashboard</title>
   <link rel="icon" type="image/png" href="assets/STFD Logo 244x244.png">
   <link rel="apple-touch-icon" sizes="180x180" href="assets/STFD Logo 244x244.png">
@@ -21,14 +21,123 @@
     .animate-marquee { animation: marquee 20s linear infinite; }
     .ticker-hidden { display: none; }
     .ticker-visible { display: flex; }
+
+    /* Keep the seasonal treatment scoped to the sidebar and behind live content. */
+    .halloween-sidebar {
+      position: relative;
+      isolation: isolate;
+      overflow-y: auto;
+      gap: 16px;
+      border-right: 1px solid #ad602f;
+      background: radial-gradient(ellipse at 0 0, #713d294d, transparent 48%),
+                  radial-gradient(ellipse at 100% 80%, #56336b40, transparent 55%), #18121f;
+      box-shadow: 5px 0 24px #0005, inset -3px 0 #f2933826;
+    }
+    .halloween-sidebar > :not(.sidebar-cobweb) { position: relative; z-index: 1; }
+    .sidebar-cobweb { position: absolute; top: 0; width: 108px; height: 108px; color: #c6b7d2; opacity: .2; pointer-events: none; z-index: 0; }
+    .sidebar-cobweb-left { left: 0; }
+    .sidebar-cobweb-right { right: 0; transform: scaleX(-1); }
+    .sidebar-brand { width: 100%; gap: 16px; }
+    .halloween-sidebar #dashboard-logo { width: min(100%, 192px); filter: drop-shadow(0 5px 14px #0006); }
+    .sidebar-season { display: flex; align-items: center; justify-content: center; gap: 8px; color: #ffb46d; font-size: 11px; font-weight: 700; letter-spacing: .16em; white-space: nowrap; }
+    .sidebar-season svg { width: 22px; height: 15px; flex-shrink: 0; color: #a994bb; }
+    .halloween-sidebar #toolbar-weather-widget {
+      width: 100%;
+      padding: 22px 10px;
+      border: 1px solid #b77d493d;
+      border-radius: 18px;
+      background: linear-gradient(145deg, #ffb46d0c, #9d72ba09);
+      box-shadow: 0 8px 24px #0002;
+    }
+    .halloween-sidebar #weather-temp { color: #fff4e6; text-shadow: 0 0 28px #ff98232b; }
+    .halloween-sidebar #weather-condition { color: #e5dbe9; }
+    .halloween-sidebar #weather-location { color: #ffc18a; }
+    .halloween-sidebar #weather-high-low { color: #c1b4ca; margin-top: 6px; }
+    .halloween-sidebar #sidebar-alert-display { flex-shrink: 0; }
+    .halloween-sidebar #clock-container { margin: 0; padding-top: 18px; border-top: 1px solid #b77d494d; }
+    .sidebar-pumpkin { width: 64px; height: 48px; margin-bottom: 12px; flex-shrink: 0; filter: drop-shadow(0 0 12px #ef82232b); }
+    .halloween-sidebar #local-time { max-width: 100%; font-size: clamp(28px, 2.5vw, 42px); letter-spacing: .015em; font-variant-numeric: tabular-nums; color: #fff4e6; }
+    .halloween-sidebar #local-date { color: #d3c1de; }
+    .halloween-sidebar #system-status { flex-shrink: 0; }
+    .halloween-sidebar .sidebar-version {
+      position: absolute;
+      bottom: 2px;
+      left: 0;
+      right: 0;
+      color: #b9a7c4;
+      font-size: 10px;
+      line-height: 10px;
+      letter-spacing: .08em;
+      text-align: center;
+      pointer-events: none;
+    }
+    @media (min-width: 768px) and (max-height: 800px) {
+      .halloween-sidebar { gap: 10px; padding: 16px 20px; }
+      .halloween-sidebar #dashboard-logo { width: 112px; }
+      .sidebar-brand { gap: 10px; }
+      .halloween-sidebar #toolbar-weather-widget { padding: 12px 8px; }
+      .halloween-sidebar #weather-icon-container { width: 48px; height: 48px; margin-bottom: 4px; }
+      .halloween-sidebar #weather-icon-container svg { max-width: 100%; max-height: 100%; }
+      .halloween-sidebar #weather-temp { font-size: 44px; }
+      .halloween-sidebar #weather-condition { font-size: 18px; }
+      .halloween-sidebar #weather-location { font-size: 16px; }
+      .halloween-sidebar #weather-high-low { font-size: 14px; }
+      .sidebar-pumpkin { width: 36px; height: 27px; margin-bottom: 6px; }
+      .halloween-sidebar #clock-container { padding-top: 10px; }
+      .halloween-sidebar #local-date { font-size: 16px; }
+    }
+    @media (min-width: 768px) and (max-height: 680px) {
+      .halloween-sidebar { gap: 8px; padding: 12px 20px; }
+      .halloween-sidebar #dashboard-logo { width: 76px; }
+      .sidebar-brand { gap: 6px; }
+      .sidebar-season { font-size: 9px; }
+      .halloween-sidebar #toolbar-weather-widget { padding: 8px; flex-shrink: 0; }
+      .halloween-sidebar #weather-icon-container { width: 40px; height: 40px; float: left; margin: 0 4px 0 0; }
+      .halloween-sidebar #weather-temp { font-size: 40px; line-height: 1; }
+      .halloween-sidebar #weather-condition, .halloween-sidebar #weather-location { font-size: 16px; line-height: 1.25; margin-top: 4px; }
+      .halloween-sidebar #weather-high-low { line-height: 20px; margin-top: 4px; }
+      .sidebar-pumpkin { display: none; }
+      .halloween-sidebar #clock-container { padding-top: 8px; }
+      .halloween-sidebar #local-time { font-size: 32px; line-height: 1.2; }
+      .halloween-sidebar #local-date { font-size: 14px; line-height: 20px; padding-bottom: 0; }
+    }
+    @media (max-width: 767px) {
+      .halloween-sidebar { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px 16px; padding: 14px 16px; border-right: 0; border-bottom: 1px solid #ad602f; }
+      .sidebar-brand { grid-row: span 2; gap: 10px; }
+      .sidebar-season { font-size: 9px; letter-spacing: .08em; white-space: normal; }
+      .sidebar-season svg { display: none; }
+      .halloween-sidebar #toolbar-weather-widget { padding: 8px; }
+      .halloween-sidebar #weather-icon-container { width: 36px; height: 36px; float: left; margin: 4px 6px 0 0; }
+      .halloween-sidebar #weather-temp { font-size: 32px; }
+      .halloween-sidebar #weather-condition { font-size: 14px; margin-top: 2px; }
+      .halloween-sidebar #weather-location { font-size: 13px; margin-top: 2px; }
+      .halloween-sidebar #weather-high-low { font-size: 12px; margin-top: 2px; }
+      .halloween-sidebar #clock-container { grid-column: 2; padding-top: 6px; }
+      .halloween-sidebar #local-time { font-size: 26px; }
+      .halloween-sidebar #local-date { font-size: 12px; padding-bottom: 0; }
+      .sidebar-pumpkin { display: none; }
+      .halloween-sidebar #sidebar-alert-display, .halloween-sidebar #system-status { grid-column: 1 / -1; }
+      .halloween-sidebar #sidebar-alert-display { grid-row: 3; margin: 0; }
+    }
   </style>
 </head>
 <body class="bg-gray-900 text-white flex flex-col h-screen w-full overflow-hidden cursor-none">
 
   <div class="flex-grow flex flex-col md:flex-row min-h-0 transition-all duration-500 ease-in-out" id="main-content-area">
-    <aside class="w-full md:w-64 bg-gray-800 text-white flex md:flex-col justify-around md:justify-between items-center p-4 md:p-5 flex-shrink-0 z-20 shadow-lg">
-      <div class="flex flex-col items-center text-center">
+    <aside aria-label="Dashboard information" class="halloween-sidebar w-full md:w-64 bg-gray-800 text-white flex md:flex-col justify-around md:justify-between items-center p-4 md:p-5 flex-shrink-0 z-20 shadow-lg">
+      <svg class="sidebar-cobweb sidebar-cobweb-left" viewBox="0 0 120 120" fill="none" stroke="currentColor" aria-hidden="true" focusable="false">
+        <path d="M0 0 116 24M0 0 96 64M0 0 64 96M0 0 24 116M26 0Q22 6 24 5Q20 12 21 14Q15 16 14 21Q7 20 5 24Q4 24 0 26M53 0Q47 12 48 10Q42 23 42 28Q30 31 28 42Q15 40 10 48Q8 49 0 53M80 0Q70 15 72 15Q62 34 63 42Q44 46 42 63Q21 60 15 72Q12 73 0 80M108 0Q93 20 96 20Q82 45 84 56Q59 61 56 84Q29 79 20 96Q16 98 0 108" />
+      </svg>
+      <svg class="sidebar-cobweb sidebar-cobweb-right" viewBox="0 0 120 120" fill="none" stroke="currentColor" aria-hidden="true" focusable="false">
+        <path d="M0 0 116 24M0 0 96 64M0 0 64 96M0 0 24 116M40 0Q30 12 36 8Q25 23 32 21Q18 28 21 32Q10 28 8 36Q5 38 0 40M80 0Q60 24 72 15Q50 46 63 42Q36 56 42 63Q20 56 15 72Q10 76 0 80M116 0Q90 36 105 22Q75 67 92 61Q54 82 61 92Q30 82 22 105Q15 111 0 116" />
+      </svg>
+      <div class="sidebar-brand flex flex-col items-center text-center">
         <img id="dashboard-logo" src="assets/STFD Logo 244x244.png" alt="Springfield Township Fire Department logo" class="w-40 md:w-60 h-auto rounded-lg">
+        <div class="sidebar-season">
+          <svg viewBox="0 0 32 20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M16 7 13 3 12 8Q5 2 0 3L4 13Q9 8 12 14L16 19 20 14Q23 8 28 13L32 3Q27 2 20 8L19 3Z"/></svg>
+          <span>Happy Halloween</span>
+          <svg viewBox="0 0 32 20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M16 7 13 3 12 8Q5 2 0 3L4 13Q9 8 12 14L16 19 20 14Q23 8 28 13L32 3Q27 2 20 8L19 3Z"/></svg>
+        </div>
       </div>
 
       <div id="toolbar-weather-widget" class="text-center">
@@ -45,10 +154,17 @@
       </div>
       
       <div id="clock-container" class="w-full my-4 flex flex-col items-center justify-center text-center">
+          <svg class="sidebar-pumpkin" viewBox="0 0 80 60" aria-hidden="true" focusable="false">
+            <path d="M39 16Q36 7 43 3L49 6Q41 9 44 17" fill="#99a66b"/>
+            <path d="M40 17C15 5 3 22 8 42C11 56 27 60 40 55C53 60 69 56 72 42C77 22 65 5 40 17Z" fill="#e48736"/>
+            <ellipse cx="40" cy="36" rx="21" ry="22" fill="#f5a24b"/>
+            <path d="M29 24 22 35 35 33ZM51 24 45 33 58 35ZM37 38 40 33 43 38ZM23 41 32 44 35 41 40 46 45 41 48 44 57 41Q53 54 40 53Q27 54 23 41" fill="#302035"/>
+          </svg>
           <div id="local-time" class="text-4xl lg:text-5xl font-black text-white tracking-wider">--:--:--</div>
           <div id="local-date" class="text-lg lg:text-xl font-bold text-gray-400 mt-1 pb-2">Loading...</div>
       </div>
       <div id="system-status" class="hidden text-xs text-center text-yellow-300 bg-yellow-950/80 border border-yellow-700 rounded px-2 py-1" role="status"></div>
+      <span class="sidebar-version" aria-label="Dashboard version 2.2.0">v2.2.0</span>
     </aside>
 
     <main class="flex-grow relative min-h-0">
@@ -94,7 +210,12 @@
       </div>
   </div>
 
-  <audio id="alertSound"></audio>
+  <div id="audioNotice" class="fixed bottom-4 left-1/2 -translate-x-1/2 z-[10001] hidden items-center gap-4 rounded-lg border-2 border-yellow-400 bg-black p-4 text-xl font-bold text-yellow-300 shadow-2xl">
+    <span id="audioNoticeText"></span>
+    <button id="enableAudioButton" type="button" class="rounded-lg bg-yellow-500 px-4 py-2 text-black hover:bg-yellow-400">Enable Alert Audio</button>
+  </div>
+
+  <audio id="alertSound" preload="auto"></audio>
 
   <script type="module">
     const { initializeApp, getFirestore, doc, onSnapshot, collection, query, orderBy } = window.STFDFirebase;
@@ -216,10 +337,36 @@
 
         let audioEnabled = true; 
         const alertAudioElement = document.getElementById('alertSound');
+        const audioNotice = document.getElementById('audioNotice');
+        const audioNoticeText = document.getElementById('audioNoticeText');
+        const enableAudioButton = document.getElementById('enableAudioButton');
         const toneFileMap = {
             'default': 'sounds/default.mp3', 'alarm': 'sounds/alarm.mp3',
             'chime': 'sounds/chime.mp3', 'ascending': 'sounds/chime.mp3'
         };
+
+        function hideAudioNotice() {
+            audioNotice.classList.add('hidden');
+            audioNotice.classList.remove('flex');
+        }
+
+        function showAudioNotice(message, canEnable = false) {
+            audioNoticeText.textContent = message;
+            enableAudioButton.classList.toggle('hidden', !canEnable);
+            audioNotice.classList.remove('hidden');
+            audioNotice.classList.add('flex');
+        }
+
+        enableAudioButton.addEventListener('click', async () => {
+            try {
+                alertAudioElement.currentTime = 0;
+                await alertAudioElement.play();
+                hideAudioNotice();
+            } catch (error) {
+                console.error('Unable to enable alert audio:', error);
+                showAudioNotice('Unable to play the configured alert sound.', false);
+            }
+        });
 
         function playAlertSound(toneName = 'default') {
             if (!audioEnabled) {
@@ -228,13 +375,16 @@
             }
             const fileName = toneFileMap[toneName] || `sounds/${toneName}`; 
             alertAudioElement.src = fileName;
+            alertAudioElement.currentTime = 0;
             alertAudioElement.play().catch(error => {
-              console.error(`Error playing sound "${fileName}":`, error);
-              const overlay = document.getElementById("ipawsAlertOverlay");
-              const errorSpan = document.createElement('span');
-              errorSpan.textContent = ` [Audio file not found: ${fileName}]`;
-              errorSpan.className = 'text-yellow-500 text-xl block mt-4';
-              if (!overlay.querySelector('span')) overlay.appendChild(errorSpan);
+              if (error?.name === 'NotAllowedError') {
+                console.warn(`Browser blocked automatic playback of "${fileName}".`);
+                showAudioNotice('Browser sound is locked. Select Enable Alert Audio once.', true);
+                return;
+              }
+
+              console.error(`Unable to load or play sound "${fileName}":`, error);
+              showAudioNotice(`Unable to load the configured alert sound: ${fileName}`, false);
             });
         }
 
