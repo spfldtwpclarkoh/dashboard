@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-oAM3zkCAQAe2jZZIkNTTcsuAt8j3WE5WP3LkCmHhDCM='; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; media-src 'self'; connect-src 'self' https: wss:; frame-src https:; object-src 'none'; base-uri 'none'; form-action 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-YehgxctEB23KkljrutJT2BjOscjoO2xADlrJGTht6DQ='; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; media-src 'self'; connect-src 'self' https: wss:; frame-src https:; object-src 'none'; base-uri 'none'; form-action 'self'">
   <title>STFD Dashboard</title>
   <link rel="icon" type="image/png" href="assets/STFD Logo 244x244.png">
   <link rel="apple-touch-icon" sizes="180x180" href="assets/STFD Logo 244x244.png">
@@ -58,7 +58,7 @@
     .sidebar-pumpkin { width: 64px; height: 48px; margin-bottom: 12px; flex-shrink: 0; filter: drop-shadow(0 0 12px #ef82232b); }
     .halloween-sidebar #local-time { max-width: 100%; font-size: clamp(28px, 2.5vw, 42px); letter-spacing: .015em; font-variant-numeric: tabular-nums; color: #fff4e6; }
     .halloween-sidebar #local-date { color: #d3c1de; }
-    .halloween-sidebar #system-status { flex-shrink: 0; }
+    .halloween-sidebar #system-status { display: none; }
     .halloween-sidebar .sidebar-version {
       position: absolute;
       bottom: 2px;
@@ -164,7 +164,7 @@
           <div id="local-date" class="text-lg lg:text-xl font-bold text-gray-400 mt-1 pb-2">Loading...</div>
       </div>
       <div id="system-status" class="hidden text-xs text-center text-yellow-300 bg-yellow-950/80 border border-yellow-700 rounded px-2 py-1" role="status"></div>
-      <span class="sidebar-version" aria-label="Dashboard version 2.2.0">v2.2.0</span>
+      <span class="sidebar-version" aria-label="Dashboard version 2.2.2">v2.2.2</span>
     </aside>
 
     <main class="flex-grow relative min-h-0">
@@ -1062,6 +1062,27 @@
             });
         }
 
+        function initializeAppUpdateListener() {
+            // Browsers can display the dashboard, but only the installed app can update Windows.
+            if (!window.STFDDesktop?.checkAndInstallUpdate) return;
+            onSnapshot(doc(db, 'alerts', 'app_update'), async (snapshot) => {
+                if (!snapshot.exists() || snapshot.metadata.fromCache || snapshot.metadata.hasPendingWrites) return;
+                const command = snapshot.data();
+                const requestedAt = command.requestedAt?.toMillis?.();
+                if (command.action !== 'check-and-install' || typeof command.requestId !== 'string' ||
+                    !Number.isFinite(requestedAt) || Date.now() - requestedAt > 5 * 60 * 1000 ||
+                    requestedAt - Date.now() > 60 * 1000) return;
+                try {
+                    const result = await window.STFDDesktop.checkAndInstallUpdate({
+                        requestId: command.requestId, requestedAt
+                    });
+                    if (result.status === 'error') console.error('Manual update failed. See the desktop update log.');
+                } catch (error) {
+                    console.error('Manual update request failed:', error);
+                }
+            }, (error) => console.error('Remote update connection unavailable:', error));
+        }
+
         function initializeForceReloadListener() {
             const forceReloadDocRef = doc(db, 'alerts', 'force_reload');
 
@@ -1119,6 +1140,7 @@
                 const app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
 
+                initializeAppUpdateListener();
                 initializeConfigListener();
             } catch(error) {
                 console.error('Firebase initialization failed:', error);

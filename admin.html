@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-K2CsFwOzHBF+b882AvPfx9YK2m+slrTRbHMuQxWYiEI='; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https: wss:; frame-src https:; object-src 'none'; base-uri 'none'; form-action 'self'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-AmJQJu5zVB1cEd8emcpJKJWQpowUxKWulWj0Ev4oJgg='; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https: wss:; frame-src https:; object-src 'none'; base-uri 'none'; form-action 'self'">
     <title>STFD Master Settings</title>
     <link rel="icon" type="image/png" href="assets/STFD Logo 244x244.png">
     <link rel="stylesheet" href="app/styles.css">
@@ -40,12 +40,18 @@
                 <h1 class="text-4xl font-black text-gray-800">STFD Master Settings</h1>
                 <p id="user-email-display" class="text-sm text-gray-600 mt-1"></p>
             </div>
-            <div class="flex gap-4 mt-4 md:mt-0">
+            <div class="flex flex-wrap gap-4 mt-4 md:mt-0">
                 <a href="deptadmin/index.html" class="inline-flex justify-center rounded-lg border border-indigo-200 bg-indigo-50 py-2 px-6 text-base font-medium text-indigo-700 shadow-sm hover:bg-indigo-100">Daily Content Admin</a>
                 <button id="manual-refresh-btn" class="inline-flex justify-center rounded-lg border border-transparent bg-green-600 py-2 px-6 text-base font-medium text-white shadow-sm hover:bg-green-700">Refresh Dashboard</button>
+                <button type="button" id="check-updates-btn" aria-describedby="update-help" class="inline-flex justify-center rounded-lg border border-transparent bg-blue-600 py-2 px-6 text-base font-medium text-white shadow-sm hover:bg-blue-700 disabled:opacity-50">Check &amp; Install Updates</button>
                 <button id="force-reload-btn" class="inline-flex justify-center rounded-lg border border-transparent bg-red-600 py-2 px-6 text-base font-medium text-white shadow-sm hover:bg-red-700">Force Reload All</button>
                 <button id="sign-out-btn" class="inline-flex justify-center rounded-lg border border-gray-300 bg-white py-2 px-6 text-base font-medium text-gray-700 shadow-sm hover:bg-gray-50">Sign Out</button>
             </div>
+        </div>
+
+        <div class="mb-6 rounded-lg border border-gray-300 bg-white p-4">
+            <p id="update-help" class="text-sm text-gray-600">Check &amp; Install Updates checks all connected Windows dashboards and installs the latest available version. Dashboards restart after installation; active emergency alerts delay the restart.</p>
+            <p id="update-feedback" class="text-sm text-gray-700 mt-1" role="status" aria-live="polite"></p>
         </div>
 
         <div id="global-error-panel" class="hidden bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6" role="alert">
@@ -162,7 +168,7 @@
         const {
           initializeApp, getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut,
           getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc,
-          query, orderBy, getDoc, setDoc
+          query, orderBy, getDoc, setDoc, serverTimestamp
         } = window.STFDFirebase;
         const { escapeHtml, finiteNumber, safeHttpsUrl, safeIframeMarkup } = window.STFDSafe;
 
@@ -376,6 +382,30 @@
             });
         });
         document.querySelector('[data-tab="weather"]').click();
+
+        // Send the same admin-only remote command used by connected desktop dashboards.
+        document.getElementById('check-updates-btn').addEventListener('click', async (event) => {
+            const button = event.currentTarget;
+            const feedback = document.getElementById('update-feedback');
+            if (!auth.currentUser || button.disabled) return;
+            button.disabled = true;
+            button.textContent = 'Sending update request…';
+            feedback.textContent = '';
+            try {
+                await setDoc(doc(db, 'alerts', 'app_update'), {
+                    requestId: crypto.randomUUID(),
+                    action: 'check-and-install',
+                    requestedAt: serverTimestamp()
+                });
+                feedback.textContent = 'Request sent. Connected Windows dashboards running 2.2.2 or later will check for updates and install any available release. If already current, they keep running. This confirms delivery of the request; individual installation results are recorded on each dashboard.';
+            } catch (error) {
+                feedback.textContent = 'Update request failed. Please try again.';
+                showGlobalError('Could not request an update: ' + error.message);
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Check & Install Updates';
+            }
+        });
 
         // Buttons
         document.getElementById('manual-refresh-btn').addEventListener('click', async () => {
