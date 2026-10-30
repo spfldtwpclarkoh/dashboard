@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-YehgxctEB23KkljrutJT2BjOscjoO2xADlrJGTht6DQ='; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; media-src 'self'; connect-src 'self' https: wss:; frame-src https:; object-src 'none'; base-uri 'none'; form-action 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-JQgje2dEiOyT0gBVES6//yENZlLQBphxFhRPuJbfcG0='; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; media-src 'self'; connect-src 'self' https: wss:; frame-src https:; object-src 'none'; base-uri 'none'; form-action 'self'">
   <title>STFD Dashboard</title>
   <link rel="icon" type="image/png" href="assets/STFD Logo 244x244.png">
   <link rel="apple-touch-icon" sizes="180x180" href="assets/STFD Logo 244x244.png">
@@ -132,7 +132,7 @@
         <path d="M0 0 116 24M0 0 96 64M0 0 64 96M0 0 24 116M40 0Q30 12 36 8Q25 23 32 21Q18 28 21 32Q10 28 8 36Q5 38 0 40M80 0Q60 24 72 15Q50 46 63 42Q36 56 42 63Q20 56 15 72Q10 76 0 80M116 0Q90 36 105 22Q75 67 92 61Q54 82 61 92Q30 82 22 105Q15 111 0 116" />
       </svg>
       <div class="sidebar-brand flex flex-col items-center text-center">
-        <img id="dashboard-logo" src="assets/STFD Logo 244x244.png" alt="Springfield Township Fire Department logo" class="w-40 md:w-60 h-auto rounded-lg">
+        <img id="dashboard-logo" src="assets/stfdlogo.png" alt="Springfield Township Fire Department logo" class="w-40 md:w-60 h-auto rounded-lg">
         <div class="sidebar-season">
           <svg viewBox="0 0 32 20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M16 7 13 3 12 8Q5 2 0 3L4 13Q9 8 12 14L16 19 20 14Q23 8 28 13L32 3Q27 2 20 8L19 3Z"/></svg>
           <span>Happy Halloween</span>
@@ -164,7 +164,7 @@
           <div id="local-date" class="text-lg lg:text-xl font-bold text-gray-400 mt-1 pb-2">Loading...</div>
       </div>
       <div id="system-status" class="hidden text-xs text-center text-yellow-300 bg-yellow-950/80 border border-yellow-700 rounded px-2 py-1" role="status"></div>
-      <span class="sidebar-version" aria-label="Dashboard version 2.2.2">v2.2.2</span>
+      <span class="sidebar-version" aria-label="Dashboard version 2.2.3">v2.2.3</span>
     </aside>
 
     <main class="flex-grow relative min-h-0">
@@ -229,9 +229,6 @@
         };
         window.addEventListener('offline', () => setSystemStatus('Network offline — showing the last loaded content'));
         window.addEventListener('online', () => setSystemStatus(''));
-        document.getElementById('dashboard-logo').addEventListener('error', (event) => {
-            event.currentTarget.src = 'assets/STFD Logo 244x244.png';
-        }, { once: true });
         
         // --- NATIVE LOCAL CLOCK ---
         function updateLocalClock() {
@@ -977,15 +974,6 @@
                 if (docSnap.exists()) {
                     dashboardConfig = docSnap.data();
 
-                    const logoImg = document.getElementById('dashboard-logo');
-                    const logoUrl = safeHttpsUrl(dashboardConfig.logoUrl);
-                    if (logoUrl) {
-                        logoImg.src = logoUrl;
-                        logoImg.style.display = 'block'; 
-                    } else {
-                        logoImg.style.display = 'none';
-                    }
-
                     if (ipawsInterval) clearInterval(ipawsInterval);
                     if (weatherInterval) clearInterval(weatherInterval);
                     if (slidesRefreshInterval) clearInterval(slidesRefreshInterval);
@@ -1024,12 +1012,10 @@
                 } else {
                     slideDivs[0].innerHTML = `<div class="w-full h-full flex items-center justify-center bg-red-900 text-white p-8 text-center text-3xl"><strong>FATAL ERROR:</strong><br>Global configuration not found in database. Please set it in the admin console.</div>`;
                     slideDivs[0].classList.add('opacity-100');
-                    document.getElementById('dashboard-logo').style.display = 'none';
                 }
             }, (error) => { 
                 slideDivs[0].innerHTML = `<div class="w-full h-full flex items-center justify-center bg-red-900 text-white p-8 text-center text-3xl"><strong>FATAL ERROR:</strong><br>Connection to configuration lost. Please refresh.<br>${escapeHtml(error.message)}</div>`;
                 slideDivs[0].classList.add('opacity-100');
-                document.getElementById('dashboard-logo').style.display = 'none';
                 
                 if (ipawsInterval) clearInterval(ipawsInterval);
                 if (weatherInterval) clearInterval(weatherInterval);

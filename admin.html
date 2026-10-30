@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-AmJQJu5zVB1cEd8emcpJKJWQpowUxKWulWj0Ev4oJgg='; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https: wss:; frame-src https:; object-src 'none'; base-uri 'none'; form-action 'self'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LkRAAUFMzPlA/2r3ciyI58Tpff0RWz6OKQiMlIdu9hQ='; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https: wss:; frame-src https:; object-src 'none'; base-uri 'none'; form-action 'self'">
     <title>STFD Master Settings</title>
     <link rel="icon" type="image/png" href="assets/STFD Logo 244x244.png">
     <link rel="stylesheet" href="app/styles.css">
@@ -91,12 +91,8 @@
                     <div id="tab-logo" class="tab-panel">
                         <fieldset class="border-b border-gray-200 py-6">
                             <legend class="text-lg font-medium text-gray-900">Logo</legend>
-                            <div class="mt-4"><label class="block text-sm font-medium text-gray-700">ImgBB API Key (used for this upload only)</label><input type="password" id="imgbb_api_key" autocomplete="off" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 text-black"></div>
-                            <div class="mt-4"><input type="file" id="logo_upload" accept="image/*" class="mt-1 block w-full text-sm text-gray-500">
-                                <button type="button" id="upload-logo-btn" class="mt-3 inline-flex justify-center rounded-lg border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700">Upload & Save</button>
-                                <span id="upload-feedback" class="ml-4 text-gray-600"></span>
-                            </div>
-                            <div class="mt-4"><img id="logo-preview" class="mt-2 h-24 w-auto rounded bg-gray-50"><input type="hidden" id="logo_url"></div>
+                            <p class="mt-4 text-sm text-gray-600">The dashboard uses the included department logo. No upload or API key is needed.</p>
+                            <div class="mt-4"><img id="logo-preview" src="assets/stfdlogo.png" alt="Springfield Township Fire Department logo" class="mt-2 h-24 w-auto rounded bg-gray-50"></div>
                         </fieldset>
                     </div>
                     <div id="tab-gslides" class="tab-panel">
@@ -224,9 +220,6 @@
                      if(el) el.value = config[key] || '';
                  });
                 
-                const logoUrl = safeHttpsUrl(config.logoUrl);
-                if(logoUrl) document.getElementById('logo-preview').src = logoUrl;
-                
                 // Load translations
                 activeTranslations = config.translations || [];
                 renderTranslations();
@@ -281,7 +274,7 @@
             clearGlobalError();
             const data = {};
             Array.from(e.target.elements).forEach(el => {
-                if(el.id && el.type !== 'submit' && el.type !== 'button' && el.id !== 'trans-original' && el.id !== 'trans-replacement' && el.id !== 'imgbb_api_key' && el.id !== 'logo_upload') {
+                if(el.id && el.type !== 'submit' && el.type !== 'button' && el.id !== 'trans-original' && el.id !== 'trans-replacement') {
                     data[el.id] = el.type === 'number' ? finiteNumber(el.value, 0) : el.value;
                 }
             });
@@ -420,25 +413,6 @@
         });
         document.getElementById('force-reload-btn').addEventListener('click', async () => {
              if(confirm('Reload all dashboards?')) await setDoc(forceReloadDocRef, { timestamp: new Date().toISOString() });
-        });
-        document.getElementById('upload-logo-btn').addEventListener('click', async () => {
-            const file = document.getElementById('logo_upload').files[0];
-            const key = document.getElementById('imgbb_api_key').value;
-            if(!file || !key) return;
-            try {
-                const fd = new FormData(); fd.append('image', file);
-                const res = await fetch(`https://api.imgbb.com/1/upload?key=${encodeURIComponent(key)}`, { method:'POST', body:fd });
-                if (!res.ok) throw new Error(`Upload service returned ${res.status}.`);
-                const json = await res.json();
-                const uploadedUrl = safeHttpsUrl(json?.data?.display_url);
-                if(!json.success || !uploadedUrl) throw new Error('Upload service returned an invalid image URL.');
-                document.getElementById('logo_url').value = uploadedUrl;
-                document.getElementById('logo-preview').src = uploadedUrl;
-                await setDoc(configDocRef, { logoUrl: uploadedUrl }, { merge: true });
-                document.getElementById('imgbb_api_key').value = '';
-            } catch (error) {
-                showGlobalError(`Logo upload failed: ${error.message}`);
-            }
         });
 
         // Auth
